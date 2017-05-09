@@ -7,15 +7,16 @@ import cv2
 import numpy as np
 np.random.seed(2017) # for reproducibility
 import os
+
 #os.environ['KERAS_BACKEND'] = 'theano'
 #os.environ["THEANO_FLAGS"] = "exception_verbosity=high,optimizer=None,device=cpu"
 #os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=cpu,floatX=float32,optimizer=fast_compile'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
-from keras.backend import set_image_data_format
+from keras.backend import set_image_data_format, set_floatx
 # keras.backend.backend()
 # keras.backend.set_epsilon(1e-07)
 # keras.backend.epsilon()
-# keras.backend.set_floatx('float32')
+#set_floatx('float16')
 # keras.backend.floatx()
 # set_image_data_format('channels_first') # theano
 set_image_data_format("channels_last")
@@ -25,7 +26,9 @@ from keras.callbacks import ModelCheckpoint, Callback, TensorBoard
 from keras.optimizers import SGD, Adam
 from keras.backend import tensorflow_backend
 import keras.backend as K
+
 from chainer.iterators import MultiprocessIterator, SerialIterator
+from chainer.dataset.dataset_mixin import DatasetMixin
 
 from model_unet import create_unet
 from mscoco import CamVid
@@ -62,7 +65,7 @@ if __name__ == '__main__':
     parser.add_argument("--shape", action='store', type=int, default=256, help='input size width & height (power of 2)')
     args = parser.parse_args()
 
-    name = args.dir
+    name = args.dir + "/"
     name += datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     name += "_fil" + str(args.filters)
     name += "_" + args.optimizer
@@ -75,8 +78,8 @@ if __name__ == '__main__':
 
     resize_shape = (args.shape, args.shape)
 
-    train = CamVid(args.dir+"/annotations/instances_train2014.json", args.dir+"/train2014/", resize_shape, args.data_aug) # type: DatasetMixin
-    valid = CamVid(args.dir+"/annotations/instances_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, args.data_aug) # type: DatasetMixin
+    valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
 
     train_iter = convert_to_keras_batch(
         MultiprocessIterator(
