@@ -1,105 +1,134 @@
-
 from typing import Tuple, List, Text, Dict, Any, Iterator, Union, Sized, Callable
-
 import sys
-
+import os
+import time
+import cProfile
+import pstats
+import numpy as np
 sys.path.append("/usr/local/Cellar/opencv3/3.2.0/lib/python3.5/site-packages/") # mac opencv path
 import cv2
-
 import skimage.io as io
-import numpy as np
+
+from imgaug import augmenters as iaa
+sys.path.append("./coco/PythonAPI/")
+
+from pycocotools.coco import COCO
+from pycocotools import mask as coco_mask
 
 from chainer.iterators import MultiprocessIterator, SerialIterator
 from chainer.dataset.dataset_mixin import DatasetMixin
 
-from imgaug import augmenters as iaa
 
-sys.path.append("./coco/PythonAPI/")
-from pycocotools.coco import COCO
-from pycocotools import mask
+def check(info: dict)-> bool:
+    '''
+    mscoco の画像から使えそうなものを判定する
+    '''
+    anns = coco_train.loadAnns(coco_train.getAnnIds(imgIds=[info['id']], iscrowd=0)) # type: List[dict]
+    
+    centers = [(ann["bbox"][0]+ann["bbox"][2]/2, ann["bbox"][1]+ann["bbox"][3]/2) for ann in anns]
 
+    for i, ann in enumerate(anns):
+        
+        # drop if people are overlapping
+        x, y, w, h = ann["bbox"]
+        for j, (cx, cy) in enumerate(centers):
+            if i == j: continue
+            if x < cx < x+w and y < cy < y+h: return False
+
+        # drop this person if parts number is too low
+        if ann["num_keypoints"] < 5: return False
+
+        # drop if segmentation area is too small
+        if ann["area"] < 64*64: return False
+        
+        keys = ann["keypoints"] # type: List[int]
+
+        # drop if no head
+        if not( # 2 is visible
+            keys[0*3+2] == 2 # nose
+            or keys[1*3+2] == 2 # l-eye
+            or keys[2*3+2] == 2 # r-eye
+            or keys[3*3+2] == 2 # l-ear
+            or keys[4*3+2] == 2 # r-ear
+        ): return False
+
+        # drop if no body
+        if (
+            not(keys[5*3+2] == 2 or keys[6*3+2] == 2) # shoulder
+            #or not(keys[7*3+2] == 2 or keys[8*3+2] == 2) # elbow
+            or not(keys[11*3+2] == 2 or keys[12*3+2] == 2) # llium
+        ): return False
+
+    return True
+
+def load_image(info: dict, dir: str="./data/train2014/") -> np.ndarray :
+    if(dir != None): img = io.imread(dir + info['file_name']) # type: np.ndarray
+    else: img = io.imread(info['coco_url']) # type: np.ndarray
+    if    img.ndim == 4: img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB) # type: np.ndarray
+    elif  img.ndim == 2: img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB) # type: np.ndarray
+    return img
+
+
+def create_mask(coco: COCO, info: dict) -> np.ndarray:
+    anns = coco.loadAnns(coco.getAnnIds(imgIds=[info['id']], iscrowd=False)) # type: List[dict]
+    w, h = info["width"], info["height"] # type: Tuple[int, int]
+    mask_all = np.zeros((h, w), np.uint8) # type: np.ndarray
+
+    for ann in anns:
+        rles = coco_mask.frPyObjects(ann["segmentation"], h, w) # type: List[dict]
+        for rle in rles:
+            mask = coco_mask.decode(rle) # type: np.ndarray
+            mask[mask > 0] = 255
+            mask_all += mask
+
+    return mask_all
 
 class CamVid(DatasetMixin):
-    def __init__(self, coco: COCO, path: str, seq: iaa.Sequential, resize_shape: Tuple[int, int]=None, dice_coef: bool=False):
-        self.resize_shape = resize_shape
-        self.coco = coco
-        self.infos = coco.loadImgs(coco.getImgIds(catIds=coco.getCatIds(catNms=['person']))) # type: List[dict]
-        self.seq = seq
-        self.seq_norm = iaa.Sequential([
-            iaa.ContrastNormalization((0.5, 2.0), per_channel=0.5)
+    def __init__(self, json_path: str, img_path: str, resize_shape: Tuple[int, int]=None, data_aug: bool=False):
+        self.data_aug = data_aug
+        self.img_path = img_path
+        self.resize_shape = resize_shape # type: Tuple[int, int]
+        self.coco = COCO(json_path) # type: COCO
+        infos = coco.loadImgs(coco.getImgIds(catIds=coco.getCatIds(catNms=['person']))) # type: List[dict]
+        self.infos = [info for info in infos if check(info)] # type: List[dict]
+        self.seq = iaa.Sequential([
+            iaa.Fliplr(0.5),
+            #iaa.Crop(px=((0, 50), (0, 50), (0, 50), (0, 50))), # crop images from each side by 0 to 16px (randomly chosen)
+            #iaa.Affine(
+            #    rotate=(-10, 10), # rotate by -45 to +45 degrees
+            #    shear=(-4, 4), # shear by -16 to +16 degrees
+            #    translate_px={"x": (-16, 16), "y": (-16, 16)}, # translate by -16 to +16 pixels (per axis)
+            #    scale={"x": (0.8, 1.2), "y": (0.8, 1.2)}, # scale images to 80-120% of their size, individually per axis
+            #),
         ]) # type: iaa.Sequential
-        self.dice_coef = dice_coef
+        self.seq_noise = iaa.Sequential([
+            iaa.GaussianBlur(sigma=(0, 1.)),
+            iaa.AdditiveGaussianNoise(scale=(0., 0.1*255), per_channel=0.5),
+            iaa.ContrastNormalization((0.5, 2.0), per_channel=0.5),
+        ]) # type: iaa.Sequential
         self.path = path
     def __len__(self) -> int:
         return len(self.infos)
     def get_example(self, i) -> Tuple[np.ndarray, np.ndarray]:
         info = self.infos[i]
-        img, mask = self.load_img(info)
-        if self.seq != None:
-            # image data augumantation
-            img = np.expand_dims(img, axis=0)
+
+        img = load_image(info, self.img_path)
+        mask = create_mask(self.coco, info)
+
+        if self.data_aug:
+            # data augumentation
+            seq_det = self.seq.to_deterministic()
+            
+            img  = np.expand_dims(img, axis=0)
             mask = np.expand_dims(mask, axis=0)
-            img = self.seq.augment_images(img)
-            img = self.seq_norm.augment_images(img)
-            mask = self.seq.augment_images(mask)
-            img = np.squeeze(img)
+            img  = seq_det.augment_images(img)
+            mask = seq_det.augment_images(mask)
+            img  = self.seq_noise.augment_images(img)
+            img  = np.squeeze(img)
             mask = np.squeeze(mask)
-        if self.resize_shape != None:
-            img = cv2.resize(img, self.resize_shape)
+            img  = cv2.resize(img, self.resize_shape))
             mask = cv2.resize(mask, self.resize_shape)
-        if self.dice_coef:
+
             mask = mask > 0
-        else:
-            mask[:,:,0] = mask[:,:,0] > 0
+
         return (img, mask)
-    def load_img(self, imgInfo: dict) -> Tuple[np.ndarray, np.ndarray]:
-        #img = io.imread(imgInfo['coco_url'])
-        img = io.imread(self.path + imgInfo['file_name'])
-        if img.ndim != 3:
-            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-        anns = self.coco.loadAnns(self.coco.getAnnIds(imgIds=[imgInfo['id']],iscrowd=False)) # type: List[dict]
-        if self.dice_coef:
-            mask_human = np.zeros((img.shape[0], img.shape[1]), np.uint8)
-        else:
-            mask_human = np.zeros((img.shape[0], img.shape[1], 2), np.uint8)
-        # mask_human: probability image mask
-        for ann in anns:
-            cat = self.coco.loadCats([ann["category_id"]])[0]
-            if cat["name" ] != "person": continue
-            rles = mask.frPyObjects(ann["segmentation"], img.shape[0], img.shape[1]) # type: List[dict]
-            for i, rle in enumerate(rles):
-                mask_img = mask.decode(rle) # type: np.ndarraya
-                if self.dice_coef:
-                    mask_human += mask_img
-                else:
-                    mask_human[:,:,0] += mask_img
-        return (img, mask_human)
-
-
-
-def get_iter(resize_shape: Tuple[int, int]=None, dice_coef: bool =False, workdir="./", data_aug: bool=False) -> DatasetMixin:
-
-    coco_train = COCO(workdir+"annotations/instances_train2014.json") # type: COCO
-    coco_val = COCO(workdir+"annotations/instances_val2014.json") # type: COCO
-
-    if data_aug:
-        seq = iaa.Sequential([
-            iaa.Fliplr(0.5),
-            iaa.Affine(
-                    scale={"x": (0.8, 1.2), "y": (0.8, 1.2)}, # scale images to 80-120% of their size, individually per axis
-                    translate_px={"x": (-16, 16), "y": (-16, 16)}, # translate by -16 to +16 pixels (per axis)
-                    rotate=(-45, 45), # rotate by -45 to +45 degrees
-                    shear=(-16, 16), # shear by -16 to +16 degrees
-                    #order=iaa.ALL, # use any of scikit-image's interpolation methods
-                    #cval=(0, 255), # if mode is constant, use a cval between 0 and 255
-                    #mode="wrap" # use any of scikit-image's warping modes (see 2nd image from the top for examples)
-            ),
-        ]).to_deterministic() # type: iaa.Sequential
-    else:
-        seq = iaa.Sequential([]).to_deterministic()
-
-
-    return (
-        CamVid(coco_train, workdir+"train2014/", seq, resize_shape, dice_coef),
-        CamVid(coco_val, workdir+"val2014/", seq, resize_shape, dice_coef)
-    )
