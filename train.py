@@ -78,8 +78,11 @@ if __name__ == '__main__':
 
     resize_shape = (args.shape, args.shape)
 
-    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, args.data_aug) # type: DatasetMixin
+    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=args.data_aug) # type: DatasetMixin
     valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+
+    print("train:", len(train))
+    print("valid:", len(valid))
 
     train_iter = convert_to_keras_batch(
         MultiprocessIterator(

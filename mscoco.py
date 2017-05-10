@@ -16,7 +16,7 @@ from chainer.iterators import MultiprocessIterator, SerialIterator
 from chainer.dataset.dataset_mixin import DatasetMixin
 
 
-def check(coco: COCO, info: dict)-> bool:
+def check(coco: COCO, info: dict, drop_crowd=False, drop_small=False, need_head=False, need_body=False)-> bool:
     '''
     mscoco の画像から使えそうなものを判定する
     '''
@@ -27,22 +27,24 @@ def check(coco: COCO, info: dict)-> bool:
     for i, ann in enumerate(anns):
         
         # drop if people are overlapping
-        x, y, w, h = ann["bbox"]
-        for j, (cx, cy) in enumerate(centers):
-            if i == j: continue
-            if x < cx < x+w and y < cy < y+h: return False
+        if drop_crowd:
+            x, y, w, h = ann["bbox"]
+            for j, (cx, cy) in enumerate(centers):
+                if i == j: continue
+                if x < cx < x+w and y < cy < y+h: return False
 
         # drop this person if parts number is too low
         if ann["num_keypoints"] < 5: return False
 
         # drop if segmentation area is too small
-        if ann["area"] < 64*64: return False
+        if drop_small and ann["area"] < 64*64: return False
         
         keys = ann["keypoints"] # type: List[int]
 
         # drop if no head
         if not( # 2 is visible
-            keys[0*3+2] == 2 # nose
+            need_head
+            and keys[0*3+2] == 2 # nose
             or keys[1*3+2] == 2 # l-eye
             or keys[2*3+2] == 2 # r-eye
             or keys[3*3+2] == 2 # l-ear
@@ -51,8 +53,9 @@ def check(coco: COCO, info: dict)-> bool:
 
         # drop if no body
         if (
-            not(keys[5*3+2] == 2 or keys[6*3+2] == 2) # shoulder
-            #or not(keys[7*3+2] == 2 or keys[8*3+2] == 2) # elbow
+            need_body
+            and not(keys[5*3+2] == 2 or keys[6*3+2] == 2) # shoulder
+            or not(keys[7*3+2] == 2 or keys[8*3+2] == 2) # elbow
             or not(keys[11*3+2] == 2 or keys[12*3+2] == 2) # llium
         ): return False
 
@@ -81,14 +84,16 @@ def create_mask(coco: COCO, info: dict) -> np.ndarray:
     return mask_all
 
 class CamVid(DatasetMixin):
-    def __init__(self, json_path: str, img_path: str, resize_shape: Tuple[int, int]=None, data_aug: bool=False):
+    def __init__(self, json_path: str, img_path: str, resize_shape: Tuple[int, int]=None, use_data_check: bool=False, data_aug: bool=False):
         self.data_aug = data_aug
         self.img_path = img_path
         self.resize_shape = resize_shape # type: Tuple[int, int]
         self.coco = COCO(json_path) # type: COCO
         coco = self.coco
         infos = coco.loadImgs(coco.getImgIds(catIds=coco.getCatIds(catNms=['person']))) # type: List[dict]
-        self.infos = [info for info in infos if check(coco, info)] # type: List[dict]
+        self.infos = infos # type: List[dict]
+        if use_data_check:
+            self.infos = [info for info in infos if check(coco, info)]
         self.seq = iaa.Sequential([
             iaa.Fliplr(0.5),
             #iaa.Crop(px=((0, 50), (0, 50), (0, 50), (0, 50))), # crop images from each side by 0 to 16px (randomly chosen)
@@ -100,7 +105,7 @@ class CamVid(DatasetMixin):
             #),
         ]) # type: iaa.Sequential
         self.seq_noise = iaa.Sequential([
-            iaa.GaussianBlur(sigma=(0, 1.)),
+            iaa.GaussianBlur(sigma=(0, 0.5)),
             iaa.AdditiveGaussianNoise(scale=(0., 0.1*255), per_channel=0.5),
             iaa.ContrastNormalization((0.5, 2.0), per_channel=0.5),
         ]) # type: iaa.Sequential
@@ -143,14 +148,16 @@ if __name__ == '__main__':
     from train import convert_to_keras_batch
     import math
 
-    parser = argparse.ArgumentParser(description='U-net trainer from mscoco')
+    parser = argparse.ArgumentParser(description='mscoco data generator self test')
     parser.add_argument("--dir", action='store', type=str, default="./", help='mscoco dir')
     args = parser.parse_args()
 
     resize_shape = (256, 256)
 
-    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, True) # type: DatasetMixin
+    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=True) # type: DatasetMixin
     valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+
+    print("train:"len(train),"valid:",len(valid))
 
     for mx in [train, valid]:
         print("start")
