@@ -63,6 +63,10 @@ if __name__ == '__main__':
     parser.add_argument("--dir", action='store', type=str, default="./", help='mscoco dir')
     parser.add_argument("--data_aug", action='store_true', help='use data augmentation')
     parser.add_argument("--shape", action='store', type=int, default=256, help='input size width & height (power of 2)')
+    parser.add_argument("--drop_crowd", action='store_true', help='drop crowd data')
+    parser.add_argument("--drop_small", action='store_true', help='drop small person data')
+    parser.add_argument("--need_head", action='store_true', help='require human head data')
+    parser.add_argument("--need_body", action='store_true', help='require human body data')
     args = parser.parse_args()
 
     name = args.dir + "/"
@@ -73,12 +77,16 @@ if __name__ == '__main__':
     name += "_" + args.ker_init
     name += "_shape" + str(args.shape) + "x" + str(args.shape)
     if args.data_aug: name += "_data_aug"
+    if args.drop_crowd: name += "_drop_crowd"
+    if args.drop_small: name += "_drop_small"
+    if args.need_head: name += "_need_head"
+    if args.need_body: name += "_need_body"
     
     print("name: ", name)
 
     resize_shape = (args.shape, args.shape)
 
-    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=args.data_aug) # type: DatasetMixin
+    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_head=args.need_head, need_body=args.need_body) # type: DatasetMixin
     valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
 
     print("train:", len(train))

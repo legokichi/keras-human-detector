@@ -42,9 +42,9 @@ def check(coco: COCO, info: dict, drop_crowd=False, drop_small=False, need_head=
         keys = ann["keypoints"] # type: List[int]
 
         # drop if no head
-        if not( # 2 is visible
-            need_head
-            and keys[0*3+2] == 2 # nose
+        if need_head and not(
+            # 2 is visible
+            keys[0*3+2] == 2 # nose
             or keys[1*3+2] == 2 # l-eye
             or keys[2*3+2] == 2 # r-eye
             or keys[3*3+2] == 2 # l-ear
@@ -53,10 +53,11 @@ def check(coco: COCO, info: dict, drop_crowd=False, drop_small=False, need_head=
 
         # drop if no body
         if (
-            need_body
-            and not(keys[5*3+2] == 2 or keys[6*3+2] == 2) # shoulder
+            need_body and (
+            not(keys[5*3+2] == 2 or keys[6*3+2] == 2) # shoulder
             or not(keys[7*3+2] == 2 or keys[8*3+2] == 2) # elbow
             or not(keys[11*3+2] == 2 or keys[12*3+2] == 2) # llium
+            )
         ): return False
 
     return True
@@ -84,7 +85,9 @@ def create_mask(coco: COCO, info: dict) -> np.ndarray:
     return mask_all
 
 class CamVid(DatasetMixin):
-    def __init__(self, json_path: str, img_path: str, resize_shape: Tuple[int, int]=None, use_data_check: bool=False, data_aug: bool=False):
+    def __init__(self, json_path: str, img_path: str, resize_shape: Tuple[int, int]=None,
+        use_data_check: bool=False, data_aug: bool=False,
+        drop_crowd=False, drop_small=False, need_head=False, need_body=False):
         self.data_aug = data_aug
         self.img_path = img_path
         self.resize_shape = resize_shape # type: Tuple[int, int]
@@ -93,7 +96,7 @@ class CamVid(DatasetMixin):
         infos = coco.loadImgs(coco.getImgIds(catIds=coco.getCatIds(catNms=['person']))) # type: List[dict]
         self.infos = infos # type: List[dict]
         if use_data_check:
-            self.infos = [info for info in infos if check(coco, info)]
+            self.infos = [info for info in infos if check(coco, info, drop_crowd, drop_small, need_head, need_body)]
         self.seq = iaa.Sequential([
             iaa.Fliplr(0.5),
             #iaa.Crop(px=((0, 50), (0, 50), (0, 50), (0, 50))), # crop images from each side by 0 to 16px (randomly chosen)
@@ -157,7 +160,7 @@ if __name__ == '__main__':
     train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=True) # type: DatasetMixin
     valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
 
-    print("train:"len(train),"valid:",len(valid))
+    print("train:",len(train),"valid:",len(valid))
 
     for mx in [train, valid]:
         print("start")
