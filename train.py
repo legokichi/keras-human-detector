@@ -86,7 +86,7 @@ if __name__ == '__main__':
     resize_shape = (args.shape, args.shape)
 
     if args.learn_head:
-        train = CamVidHead(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_elbow=args.need_elbow, need_llium=args.need_llium)# type: DatasetMixin
+        train = CamVidHead(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_elbow=args.need_elbow, need_llium=args.need_llium)# type: DatasetMixin
         valid = CamVidHead(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
     else:
         train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_head=args.need_head, need_shoulder=args.need_shoulder, need_elbow=args.need_elbow, need_llium=args.need_llium)
@@ -131,7 +131,7 @@ if __name__ == '__main__':
             output_ch = 1
             loss = "binary_crossentropy" # type: Union[str, Callable]
             metrics = ['accuracy'] # type: List[Union[str, Callable]]
-            filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-accuracy{accuracy:.2f}.hdf5"
+            filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
         else:
             input_shape = (resize_shape[0], resize_shape[1], 3)
             output_ch = 1
