@@ -221,11 +221,10 @@ class CamVid(DatasetMixin):
 
         return (img, mask)
 
-class CamVidHead(DatasetMixin):
-    def __init__(self, json_path: str, img_path: str, resize_shape: Tuple[int, int]=None,
-        use_data_check: bool=False, data_aug: bool=False,
+class CamVidHead(CamVid):
+    def __init__(self, json_path: str, img_path: str, resize_shape: Tuple[int, int]=None, data_aug: bool=False,
         drop_crowd=False, drop_small=False, need_elbow=False, need_llium=False):
-        super().__init__(json_path=json_path, img_path=img_path, resize_shape=resize_shape, use_data_check=use_data_check, data_aug=data_aug,
+        super(CamVidHead, self).__init__(json_path=json_path, img_path=img_path, resize_shape=resize_shape, use_data_check=True, data_aug=data_aug,
             drop_crowd=drop_crowd, drop_small=drop_small, need_head=True, need_shoulder=True, need_elbow=need_elbow, need_llium=need_llium)
     def get_example(self, i) -> Tuple[np.ndarray, np.ndarray]:
         info = self.infos[i]
@@ -258,7 +257,7 @@ class CamVidHead(DatasetMixin):
         alpha = alpha > 0
 
         # concat
-        np.dstack((img, alpha))
+        img = np.dstack((img, alpha))
 
         return (img, mask)
 
@@ -315,12 +314,12 @@ if __name__ == '__main__':
 
     print("ok")
 
-    train2 = CamVidHead(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=True, drop_crowd=True, drop_small=False, need_elbow=False, need_llium=False) # type: DatasetMixin
+    train2 = CamVidHead(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=True, drop_crowd=True) # type: DatasetMixin
     valid2 = CamVidHead(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
 
     print("train2:",len(train2),"valid2:",len(valid2))
 
-    for mx in [train2, valid2]:
+    for mx in [valid2]:
         print("start")
         it = convert_to_keras_batch(
             MultiprocessIterator(
