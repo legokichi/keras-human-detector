@@ -31,16 +31,7 @@ from chainer.iterators import MultiprocessIterator, SerialIterator
 from chainer.dataset.dataset_mixin import DatasetMixin
 
 from model_unet import create_unet
-from mscoco import CamVid
-
-def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, np.ndarray]]]) -> Iterator[Tuple[np.ndarray, np.ndarray]] :
-    while True:
-        batch = iter.__next__() # type: List[Tuple[np.ndarray, np.ndarray]]
-        xs = [x for (x, _) in batch] # type: List[np.ndarray]
-        ys = [y for (_, y) in batch] # type: List[np.ndarray]
-        _xs = np.array(xs) # (n, 480, 360, 3)
-        _ys = np.array(ys) # (n, 480, 360, n_classes)
-        yield (_xs, _ys)
+from mscoco import CamVid, CamVidHead, convert_to_keras_batch
 
 def dice_coef(y_true: K.tf.Tensor, y_pred: K.tf.Tensor) -> K.tf.Tensor:
     y_true = K.flatten(y_true)
@@ -66,7 +57,11 @@ if __name__ == '__main__':
     parser.add_argument("--drop_crowd", action='store_true', help='drop crowd data')
     parser.add_argument("--drop_small", action='store_true', help='drop small person data')
     parser.add_argument("--need_head", action='store_true', help='require human head data')
-    parser.add_argument("--need_body", action='store_true', help='require human body data')
+    parser.add_argument("--need_shoulder", action='store_true', help='require human shoulder data')
+    parser.add_argument("--need_elbow", action='store_true', help='require human elbow data')
+    parser.add_argument("--need_llium", action='store_true', help='require human llium data')
+    parser.add_argument("--learn_head", action='store_true', help='human head detection training mode')
+
     args = parser.parse_args()
 
     name = args.dir + "/"
@@ -76,18 +71,26 @@ if __name__ == '__main__':
     name += "_lr" + str(args.lr)
     name += "_" + args.ker_init
     name += "_shape" + str(args.shape) + "x" + str(args.shape)
+    if args.learn_head:
+       name += "_learn_head"
     if args.data_aug: name += "_data_aug"
     if args.drop_crowd: name += "_drop_crowd"
     if args.drop_small: name += "_drop_small"
-    if args.need_head: name += "_need_head"
-    if args.need_body: name += "_need_body"
+    if (not args.learn_head) and args.need_head: name += "_need_head"
+    if (not args.learn_head) and args.need_shoulder: name += "_need_shoulder"
+    if args.need_elbow: name += "_need_elbow"
+    if args.need_llium: name += "_need_llium"
     
     print("name: ", name)
 
     resize_shape = (args.shape, args.shape)
 
-    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_head=args.need_head, need_body=args.need_body) # type: DatasetMixin
-    valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+    if args.learn_head:
+        train = CamVidHead(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_elbow=args.need_elbow, need_llium=args.need_llium)# type: DatasetMixin
+        valid = CamVidHead(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+    else:
+        train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_head=args.need_head, need_shoulder=args.need_shoulder, need_elbow=args.need_elbow, need_llium=args.need_llium)
+        valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape)
 
     print("train:", len(train))
     print("valid:", len(valid))
@@ -122,12 +125,19 @@ if __name__ == '__main__':
         session = K.tf.Session("")
         tensorflow_backend.set_session(session)
         tensorflow_backend.set_learning_phase(1)
-
-        input_shape = (resize_shape[0], resize_shape[1], 3)
-        output_ch = 1
-        loss = dice_coef_loss
-        metrics = [dice_coef]
-        filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_dice_coef{val_dice_coef:.2f}.hdf5"
+        
+        if args.learn_head:
+            input_shape = (resize_shape[0], resize_shape[1], 4)
+            output_ch = 1
+            loss = "binary_crossentropy" # type: Union[str, Callable]
+            metrics = ['accuracy'] # type: List[Union[str, Callable]]
+            filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-accuracy{accuracy:.2f}.hdf5"
+        else:
+            input_shape = (resize_shape[0], resize_shape[1], 3)
+            output_ch = 1
+            loss = dice_coef_loss
+            metrics = [dice_coef]
+            filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_dice_coef{val_dice_coef:.2f}.hdf5"
 
         model = create_unet(input_shape, output_ch, args.filters, args.ker_init)
         
