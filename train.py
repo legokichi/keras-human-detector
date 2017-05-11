@@ -44,7 +44,7 @@ def dice_coef_loss(y_true: K.tf.Tensor, y_pred: K.tf.Tensor) -> K.tf.Tensor:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='U-net trainer from mscoco')
-    parser.add_argument("--epochs",  action='store', type=int, default=1000, help='epochs')
+    parser.add_argument("--epochs",  action='store', type=int, default=100, help='epochs')
     parser.add_argument("--resume",  action='store', type=str, default="", help='*_weights.hdf5')
     parser.add_argument("--initial_epoch", action='store', type=int, default=0, help='initial_epoch')
     parser.add_argument("--ker_init", action='store', type=str, default="glorot_uniform", help='conv2D kernel initializer')
