@@ -129,7 +129,7 @@ if __name__ == '__main__':
         if args.learn_head:
             input_shape = (resize_shape[0], resize_shape[1], 4)
             output_ch = 1
-            loss = "binary_crossentropy" # type: Union[str, Callable]
+            loss = "mean_squared_error" # type: Union[str, Callable]
             metrics = ['accuracy'] # type: List[Union[str, Callable]]
             filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
         else:
