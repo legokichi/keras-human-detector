@@ -31,7 +31,7 @@ from chainer.iterators import MultiprocessIterator, SerialIterator
 from chainer.dataset.dataset_mixin import DatasetMixin
 
 from model_unet import create_unet
-from mscoco import CamVid, CamVidHead, convert_to_keras_batch
+from mscoco import CamVid, CamVidHead, CamVidOneshot, convert_to_keras_batch
 
 def dice_coef(y_true: K.tf.Tensor, y_pred: K.tf.Tensor) -> K.tf.Tensor:
     y_true = K.flatten(y_true)
@@ -61,6 +61,7 @@ if __name__ == '__main__':
     parser.add_argument("--need_elbow", action='store_true', help='require human elbow data')
     parser.add_argument("--need_llium", action='store_true', help='require human llium data')
     parser.add_argument("--learn_head", action='store_true', help='human head detection training mode')
+    parser.add_argument("--learn_oneshot", action='store_true', help='human head and segment detection training mode')
 
     args = parser.parse_args()
 
@@ -73,11 +74,13 @@ if __name__ == '__main__':
     name += "_shape" + str(args.shape) + "x" + str(args.shape)
     if args.learn_head:
        name += "_learn_head"
+    elif args.learn_oneshot:
+        name += "_learn_head"
     if args.data_aug: name += "_data_aug"
     if args.drop_crowd: name += "_drop_crowd"
     if args.drop_small: name += "_drop_small"
-    if (not args.learn_head) and args.need_head: name += "_need_head"
-    if (not args.learn_head) and args.need_shoulder: name += "_need_shoulder"
+    if (not (args.learn_head or args.learn_oneshot)) and args.need_head: name += "_need_head"
+    if (not (args.learn_head or args.learn_oneshot)) and args.need_shoulder: name += "_need_shoulder"
     if args.need_elbow: name += "_need_elbow"
     if args.need_llium: name += "_need_llium"
     
@@ -88,6 +91,9 @@ if __name__ == '__main__':
     if args.learn_head:
         train = CamVidHead(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_elbow=args.need_elbow, need_llium=args.need_llium)# type: DatasetMixin
         valid = CamVidHead(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+    elif args.learn_oneshot:
+        train = CamVidOneshot(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_elbow=args.need_elbow, need_llium=args.need_llium)
+        valid = CamVidOneshot(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape)
     else:
         train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=args.data_aug, drop_crowd=args.drop_crowd, drop_small=args.drop_small, need_head=args.need_head, need_shoulder=args.need_shoulder, need_elbow=args.need_elbow, need_llium=args.need_llium)
         valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape)
@@ -131,6 +137,12 @@ if __name__ == '__main__':
             output_ch = 1
             loss = "mean_squared_error" # type: Union[str, Callable]
             metrics = ['accuracy'] # type: List[Union[str, Callable]]
+            filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
+        elif args.learn_oneshot:
+            input_shape = (resize_shape[0], resize_shape[1], 3)
+            output_ch = 2
+            loss = "mean_squared_error"
+            metrics = ['accuracy']
             filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
         else:
             input_shape = (resize_shape[0], resize_shape[1], 3)
