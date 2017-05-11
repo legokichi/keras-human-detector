@@ -261,6 +261,42 @@ class CamVidHead(CamVid):
 
         return (img, mask)
 
+class CamVidOneshot(CamVid):
+    def __init__(self, json_path: str, img_path: str, resize_shape: Tuple[int, int]=None, data_aug: bool=False,
+        drop_crowd=False, drop_small=False, need_elbow=False, need_llium=False):
+        super(CamVidOneshot, self).__init__(json_path=json_path, img_path=img_path, resize_shape=resize_shape, use_data_check=True, data_aug=data_aug,
+            drop_crowd=drop_crowd, drop_small=drop_small, need_head=True, need_shoulder=True, need_elbow=need_elbow, need_llium=need_llium)
+    def get_example(self, i) -> Tuple[np.ndarray, np.ndarray]:
+        info = self.infos[i]
+
+        img = load_image(info, self.img_path)
+        mask_all = create_mask(self.coco, info)
+        mask_head = create_head_mask(self.coco, info)
+
+        if self.data_aug:
+            # data augumentation
+            seq_det = self.seq.to_deterministic()
+            
+            img  = np.expand_dims(img, axis=0)
+            mask_all = np.expand_dims(mask_all, axis=0)
+            mask_head = np.expand_dims(mask_head, axis=0)
+            img  = seq_det.augment_images(img)
+            mask_all = seq_det.augment_images(mask_all)
+            mask_head = seq_det.augment_images(mask_head)
+            img  = self.seq_noise.augment_images(img)
+            img  = np.squeeze(img)
+            mask_all  = np.squeeze(mask_all)
+            mask_head = np.squeeze(mask_head)
+
+        # resize
+        img  = cv2.resize(img, self.resize_shape)
+        mask_all = cv2.resize(mask_all, self.resize_shape)
+        mask_head = cv2.resize(mask_head, self.resize_shape)
+
+        # concat
+        mask = np.dstack((mask_all, mask_head))
+
+        return (img, mask)
 
 
 def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, np.ndarray]]]) -> Iterator[Tuple[np.ndarray, np.ndarray]] :
@@ -286,6 +322,38 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     resize_shape = (256, 256)
+
+
+    train3 = CamVidHead(args.dir+"/annotations/person_keypoints_train2014.json", None, resize_shape, data_aug=True, drop_crowd=True) # type: DatasetMixin
+    valid3 = CamVidHead(args.dir+"/annotations/person_keypoints_val2014.json",   None,   resize_shape) # type: DatasetMixin
+
+    print("train3:",len(train3),"valid3:",len(valid3))
+
+    for mx in [train3, valid3]:
+        print("start")
+        it = convert_to_keras_batch(
+            MultiprocessIterator(
+                mx,
+                batch_size=8,
+                repeat=False,
+                shuffle=False,
+                n_processes=12,
+                n_prefetch=120,
+                shared_mem=1000*1000*5
+            )
+        )
+
+        for i,(_, (img,mask)) in enumerate(zip(range(math.floor(len(mx)/8)), it)):
+            print(i, img.shape, mask.shape)
+            assert img.shape == (8, 256, 256, 3)
+            assert mask.shape == (8, 256, 256, 2)
+        print("stop")
+
+    print("ok")
+
+    exit()
+
+
 
     train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=True) # type: DatasetMixin
     valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
@@ -319,7 +387,7 @@ if __name__ == '__main__':
 
     print("train2:",len(train2),"valid2:",len(valid2))
 
-    for mx in [valid2]:
+    for mx in [train2, valid2]:
         print("start")
         it = convert_to_keras_batch(
             MultiprocessIterator(
