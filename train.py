@@ -75,7 +75,7 @@ if __name__ == '__main__':
     if args.learn_head:
        name += "_learn_head"
     elif args.learn_oneshot:
-        name += "_learn_head"
+        name += "_learn_oneshot"
     if args.data_aug: name += "_data_aug"
     if args.drop_crowd: name += "_drop_crowd"
     if args.drop_small: name += "_drop_small"
@@ -136,22 +136,26 @@ if __name__ == '__main__':
             input_shape = (resize_shape[0], resize_shape[1], 4)
             output_ch = 1
             loss = "mean_squared_error" # type: Union[str, Callable]
+            name += "_mean_squared_error"
             metrics = ['accuracy'] # type: List[Union[str, Callable]]
             filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
+            model = create_unet(input_shape, output_ch, args.filters, args.ker_init, heatmap=True)
         elif args.learn_oneshot:
             input_shape = (resize_shape[0], resize_shape[1], 3)
             output_ch = 2
             loss = "mean_squared_error"
+            name += "_mean_squared_error"
             metrics = ['accuracy']
             filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
+            model = create_unet(input_shape, output_ch, args.filters, args.ker_init)
         else:
             input_shape = (resize_shape[0], resize_shape[1], 3)
             output_ch = 1
             loss = dice_coef_loss
+            name += "_dice_coef_loss"
             metrics = [dice_coef]
             filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_dice_coef{val_dice_coef:.2f}.hdf5"
-
-        model = create_unet(input_shape, output_ch, args.filters, args.ker_init)
+            model = create_unet(input_shape, output_ch, args.filters, args.ker_init)
         
         if args.optimizer == "nesterov":
             optimizer = SGD(lr=args.lr, momentum=0.9, decay=0.0005, nesterov=True)

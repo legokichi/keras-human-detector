@@ -11,7 +11,7 @@ from keras.utils import plot_model
 
 
 
-def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_init: str="glorot_uniform") -> Model:
+def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_init: str="glorot_uniform", heatmap=False) -> Model:
     '''
     reference models
     * https://github.com/phillipi/pix2pix/blob/master/models.lua#L47
@@ -35,15 +35,22 @@ def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_
     x = BatchNormalization()( Conv2DTranspose(filters*4, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e3])
     x = BatchNormalization()( Conv2DTranspose(filters*2, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e2])
     x = BatchNormalization()( Conv2DTranspose(filters*1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e1])
-    x =                       Conv2DTranspose(output_ch, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
     
-    if output_ch == 1:
-        # for dice_coef
-        x = Reshape((in_shape[0], in_shape[1]))(x)
-        #x = Activation("tanh")(x)
-        x = Activation('sigmoid')(x)
+    if heatmap:
+        x = Conv2DTranspose(filters, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+        x = Conv2D(output_ch, kernel_size=(1, 1), strides=(1, 1), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+        x = Activation("relu")(x)
     else:
-        x = Activation("softmax")(x)
+        x = Conv2DTranspose(output_ch, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+
+        if output_ch == 1:
+            # for dice_coef
+            x = Reshape((in_shape[0], in_shape[1]))(x)
+            #x = Activation("tanh")(x)
+            x = Activation('sigmoid')(x)
+        else:
+            # for semantic segmentation
+            x = Activation("softmax")(x)
     
     unet = Model(inputs=[input_tensor], outputs=[x])
     
@@ -51,7 +58,7 @@ def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_
 
 
 if __name__ == '__main__':
-    unet = create_unet((512, 512, 3), 1, 64, "he_normal")
+    unet = create_unet((256, 256, 3), 1, 64)
     unet.summary()
     plot_model(unet, to_file='unet.png', show_shapes=True, show_layer_names=True)
     
