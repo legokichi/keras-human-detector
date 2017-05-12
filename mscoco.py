@@ -324,36 +324,6 @@ if __name__ == '__main__':
     resize_shape = (256, 256)
 
 
-    train3 = CamVidHead(args.dir+"/annotations/person_keypoints_train2014.json", None, resize_shape, data_aug=True, drop_crowd=True) # type: DatasetMixin
-    valid3 = CamVidHead(args.dir+"/annotations/person_keypoints_val2014.json",   None,   resize_shape) # type: DatasetMixin
-
-    print("train3:",len(train3),"valid3:",len(valid3))
-
-    for mx in [train3, valid3]:
-        print("start")
-        it = convert_to_keras_batch(
-            MultiprocessIterator(
-                mx,
-                batch_size=8,
-                repeat=False,
-                shuffle=False,
-                n_processes=12,
-                n_prefetch=120,
-                shared_mem=1000*1000*5
-            )
-        )
-
-        for i,(_, (img,mask)) in enumerate(zip(range(math.floor(len(mx)/8)), it)):
-            print(i, img.shape, mask.shape)
-            assert img.shape == (8, 256, 256, 3)
-            assert mask.shape == (8, 256, 256, 2)
-        print("stop")
-
-    print("ok")
-
-    exit()
-
-
 
     train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/train2014/", resize_shape, use_data_check=True, data_aug=True) # type: DatasetMixin
     valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
@@ -378,6 +348,7 @@ if __name__ == '__main__':
             print(i, img.shape, mask.shape)
             assert img.shape == (8, 256, 256, 3)
             assert mask.shape == (8, 256, 256)
+        it.__del__()
         print("stop")
 
     print("ok")
@@ -407,7 +378,39 @@ if __name__ == '__main__':
             assert mask.shape == (8, 256, 256)
         print("stop")
 
+        it.__del__()
+
     print("ok")
+
+    train3 = CamVidOneshot(args.dir+"/annotations/person_keypoints_train2014.json", None, resize_shape, data_aug=True, drop_crowd=True) # type: DatasetMixin
+    valid3 = CamVidOneshot(args.dir+"/annotations/person_keypoints_val2014.json",   None,   resize_shape) # type: DatasetMixin
+
+    print("train3:",len(train3),"valid3:",len(valid3))
+
+    for mx in [train3, valid3]:
+        print("start")
+        it = convert_to_keras_batch(
+            MultiprocessIterator(
+                mx,
+                batch_size=8,
+                repeat=False,
+                shuffle=False,
+                n_processes=12,
+                n_prefetch=120,
+                shared_mem=1000*1000*5
+            )
+        )
+
+        for i,(_, (img,mask)) in enumerate(zip(range(math.floor(len(mx)/8)), it)):
+            print(i, img.shape, mask.shape)
+            assert img.shape == (8, 256, 256, 3)
+            assert mask.shape == (8, 256, 256, 2)
+        print("stop")
+
+        it.__del__()
+
+    print("ok")
+
 
     exit()
 
