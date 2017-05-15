@@ -14,7 +14,7 @@ from pycocotools import mask as coco_mask
 from chainer.iterators import MultiprocessIterator, SerialIterator
 from chainer.dataset.dataset_mixin import DatasetMixin
 
-def check(coco: COCO, info: dict, drop_crowd=False, drop_small=False, need_head=True, need_shoulder=True, drop_minkey=False)-> bool:
+def check(coco: COCO, info: dict, drop_crowd=False, drop_small=False, drop_minkey=False)-> bool:
     '''
     mscoco の画像から使えそうなものを判定する
     '''
@@ -43,9 +43,7 @@ def check(coco: COCO, info: dict, drop_crowd=False, drop_small=False, need_head=
         
         keys = ann["keypoints"] # type: List[int]
 
-        # drop if no head
-        if need_head and (
-            # 2 is visible
+        if not(
             keys[0*3+2] != 0 # nose
             or keys[1*3+2] != 0 # l-eye
             or keys[2*3+2] != 0 # r-eye
@@ -54,7 +52,10 @@ def check(coco: COCO, info: dict, drop_crowd=False, drop_small=False, need_head=
         ): return False
 
         # drop if no body
-        if(need_shoulder and (keys[5*3+2] != 0 or keys[6*3+2] != 0)): return False
+        if not(
+            keys[5*3+2] != 0
+            or keys[6*3+2] != 0
+        ): return False
 
     return True
 
@@ -120,9 +121,9 @@ def create_head_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
         # decide head center
 
         # nose, l-eye, r-eye
-        face_parts = [(float(x),float(y)) for x,y,v in parts[0:3] if v == 2] # type: List[Tuple[float, float]]
+        face_parts = [(float(x),float(y)) for x,y,v in parts[0:3] if v != 0] # type: List[Tuple[float, float]]
         # l-ear, r-ear
-        ear_parts = [(float(x),float(y)) for x,y,v in parts[3:5] if v == 2] # type: List[Tuple[float, float]]
+        ear_parts = [(float(x),float(y)) for x,y,v in parts[3:5] if v != 0] # type: List[Tuple[float, float]]
 
         if len(face_parts) != 0:
             face_center = cast(Tuple[float, float], tuple(np.average(np.array(face_parts).T, axis=1).tolist())) # type: Tuple[float, float]
@@ -133,7 +134,7 @@ def create_head_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
         head_center = cast(Tuple[float, float], tuple(np.average(np.array(head_parts).T, axis=1).tolist())) # type: Tuple[float, float]
 
         # decide head region
-        shoulder_parts = [(x,y) for x,y,v in parts[5:7] if v == 2] # type: List[Tuple[int, int]]
+        shoulder_parts = [(x,y) for x,y,v in parts[5:7] if v != 0] # type: List[Tuple[int, int]]
         assert len(shoulder_parts) != 0
         distances = [np.sqrt(np.power(head_center[0] - sholder[0], 2) + np.power(head_center[1] - sholder[1], 2)) for sholder in shoulder_parts] # type: List[float]
         distance = np.average(distances) # type: float
@@ -146,12 +147,13 @@ def create_head_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
         # annotate head position
         kernel_img = Image.fromarray(kernel)
         mask_head_img = Image.fromarray(mask_head)
-        mask_head_img.paste(kernel_img, (head_center[0]-int(kernel.shape[0]/2), head_center[1]-int(kernel.shape[1]/2)))
+        mask_head_img.paste(kernel_img, (int(head_center[0]-(kernel.shape[0]/2)), int(head_center[1]-(kernel.shape[1]/2))))
         mask_head = np.asarray(mask_head_img)
         mask_head.flags.writeable = True
         
         if debug: 
             mask_head[head_center[1], head_center[0]] = 255
+            # 2 is visible
             cv2.putText(mask_head, "+", head_center, cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
 
         # masking human region
@@ -180,8 +182,9 @@ class CamVid(DatasetMixin):
         self.coco = COCO(keypoint_json_path) # type: COCO
         coco = self.coco
         infos = coco.loadImgs(coco.getImgIds(catIds=coco.getCatIds(catNms=['person']))) # type: List[dict]
+        print("original:", len(infos))
         self.infos = [info for info in infos if check(coco, info, drop_crowd, drop_small)] # type: List[dict]
-        if self.data_aug:
+        if False and self.data_aug:
             self.coco2 = COCO(all_json_path) # type: COCO
             coco = self.coco2
             infos = coco.loadImgs(coco.getImgIds(catIds=coco.getCatIds()))
