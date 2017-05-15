@@ -32,6 +32,15 @@ from chainer.dataset.dataset_mixin import DatasetMixin
 from model_unet import create_unet
 from mscoco import CamVid, convert_to_keras_batch
 
+def dice_coef(y_true: K.tf.Tensor, y_pred: K.tf.Tensor) -> K.tf.Tensor:
+    y_true = K.flatten(y_true)
+    y_pred = K.flatten(y_pred)
+    intersection = K.sum(y_true * y_pred)
+    return (2. * intersection + 1.) / (K.sum(y_true) + K.sum(y_pred) + 1.)
+
+def dice_coef_loss(y_true: K.tf.Tensor, y_pred: K.tf.Tensor) -> K.tf.Tensor:
+    return -dice_coef(y_true, y_pred)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='U-net trainer from mscoco')
     parser.add_argument("--epochs",  action='store', type=int, default=100, help='epochs')
@@ -106,9 +115,9 @@ if __name__ == '__main__':
 
         input_shape = (resize_shape[0], resize_shape[1], 3)
         output_ch = 2
-        loss = args.loss
-        metrics = ['accuracy']
-        filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
+        loss = {'output1': dice_coef_loss, 'output2': 'mean_squared_error'}
+        metrics = {'output_1': dice_coef, 'output_2': 'accuracy'}
+        filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}.hdf5"
         model = create_unet(input_shape, output_ch, args.filters, args.ker_init, args.activation)
 
         if args.optimizer == "nesterov":

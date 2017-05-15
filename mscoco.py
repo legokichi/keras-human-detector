@@ -187,7 +187,7 @@ class CamVid(DatasetMixin):
         self.infos = [info for info in infos if check(coco, info, drop_crowd, drop_small)] # type: List[dict]
         print("person:", len(self.infos))
         if self.data_aug:
-            coco = COCO(all_json_path) # type: COCO
+            coco = COCO(all_json_path)
             print(len(coco.getImgIds()))
             infos = coco.loadImgs(coco.getImgIds())
             _infos = []
@@ -223,7 +223,7 @@ class CamVid(DatasetMixin):
         ]) # type: iaa.Sequential
     def __len__(self) -> int:
         return len(self.infos)
-    def get_example(self, i) -> Tuple[np.ndarray, np.ndarray]:
+    def get_example(self, i) -> Tuple[np.ndarray, dict]:
         info = self.infos[i]
 
         img = load_image(info, self.img_path)
@@ -255,10 +255,7 @@ class CamVid(DatasetMixin):
         mask_all[mask_all <  0.5*255] = 0.05 * 255
         mask_head[mask_head < 0.01*255] = 0.01 * 255
 
-        # concat
-        mask = np.dstack((mask_all, mask_head))
-
-        return (img, mask)
+        return (img, {'output_1': mask_all, 'output_2': mask_head} )
 
 
 def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, np.ndarray]]]) -> Iterator[Tuple[np.ndarray, np.ndarray]] :
