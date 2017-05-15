@@ -175,8 +175,9 @@ def gaussian_kernel(kernlen=21, nsig=3):
     return kernel
 
 class CamVid(DatasetMixin):
-    def __init__(self, keypoint_json_path: str, all_json_path: str, img_path: str, resize_shape: Tuple[int, int]=None,
+    def __init__(self, mode: str, keypoint_json_path: str, all_json_path: str, img_path: str, resize_shape: Tuple[int, int]=None,
         data_aug: bool=False, drop_crowd=False, drop_small=False):
+        self.mode = mode
         self.data_aug = data_aug
         self.img_path = img_path
         self.resize_shape = resize_shape # type: Tuple[int, int]
@@ -255,19 +256,24 @@ class CamVid(DatasetMixin):
         mask_all[mask_all <  0.5*255] = 0.05 * 255
         mask_head[mask_head < 0.01*255] = 0.01 * 255
 
-        return (img, {'output1': mask_all, 'output2': mask_head} )
+        if self.mode == "binarize":
+            return (img, mask_all)
+        elif self.mode == "heatmap":
+            # concat
+            img = np.dstack((img, mask_all))
+            return (img, mask_head)
+        else:
+            raise Exception("unknown mode: "+self.mode)
 
 
-def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, dict]]]) -> Iterator[Tuple[np.ndarray, np.ndarray]] :
+def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, np.ndarray]]]) -> Iterator[Tuple[np.ndarray, np.ndarray]] :
     while True:
         batch = iter.__next__() # type: List[Tuple[np.ndarray, np.ndarray]]
         xs = [x for (x, _) in batch] # type: List[np.ndarray]
-        ys = [y["output1"] for (_, y) in batch] # type: List[np.ndarray]
-        zs = [y["output2"] for (_, y) in batch] # type: List[np.ndarray]
+        ys = [y for (_, y) in batch] # type: List[np.ndarray]
         xs = cast_to_floatx(np.array(xs)) # (n, 480, 360, 3)
         ys = cast_to_floatx(np.array(ys)) # (n, 480, 360, 1)
-        zs = cast_to_floatx(np.array(ys)) # (n, 480, 360, 1)
-        yield (xs, {"output1": ys, "output2": zs})
+        yield (xs, ys)
 
 
 if __name__ == '__main__':
@@ -285,8 +291,8 @@ if __name__ == '__main__':
     resize_shape = (512, 512)
     batch_size = 8
 
-    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/annotations/instances_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=True) # type: DatasetMixin
-    valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/annotations/instances_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+    train = CamVid("binarize", args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/annotations/instances_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=True) # type: DatasetMixin
+    valid = CamVid("binarize", args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/annotations/instances_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
 
     print("train:",len(train),"valid:",len(valid))
 

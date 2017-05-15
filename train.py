@@ -54,12 +54,14 @@ if __name__ == '__main__':
     parser.add_argument("--dir", action='store', type=str, default="./", help='mscoco dir')
     parser.add_argument("--data_aug", action='store_true', help='use data augmentation')
     parser.add_argument("--shape", action='store', type=int, default=256, help='input size width & height (power of 2)')
+    parser.add_argument("--mode", action='store', type=str, default="heatmap", help='heatmap | binarize')
 
     args = parser.parse_args()
 
     name = args.dir + "/"
     name += datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     name += "_" + floatx()
+    name += "_" + args.mode
     name += "_fil" + str(args.filters)
     name += "_" + args.optimizer
     name += "_lr" + str(args.lr)
@@ -72,8 +74,8 @@ if __name__ == '__main__':
 
     resize_shape = (args.shape, args.shape)
 
-    train = CamVid(args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/annotations/instances_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=True) # type: DatasetMixin
-    valid = CamVid(args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/annotations/instances_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+    train = CamVid(args.mode, args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/annotations/instances_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=True) # type: DatasetMixin
+    valid = CamVid(args.mode, args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/annotations/instances_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
 
     print("train:", len(train))
     print("valid:", len(valid))
@@ -109,12 +111,20 @@ if __name__ == '__main__':
         tensorflow_backend.set_learning_phase(1)
         
 
-        input_shape = (resize_shape[0], resize_shape[1], 3)
-        output_ch = 2
-        loss = {'output1': dice_coef_loss, 'output2': 'mean_squared_error'}
-        metrics = {'output1': dice_coef, 'output2': 'accuracy'}
-        filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}.hdf5"
-        model = create_unet(input_shape, args.filters, args.ker_init)
+        if args.mode == "heatmap":
+            input_shape = (resize_shape[0], resize_shape[1], 4)
+            loss = "mean_squared_error" # type: Any
+            metrics = ["accuracy"] # type: Any
+            filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
+        elif args.mode == "binarize":
+            input_shape = (resize_shape[0], resize_shape[1], 3)
+            loss = dice_coef_loss
+            metrics = ["dice_coef"]
+            filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_dice_coef{val_dice_coef:.2f}.hdf5"
+        else:
+            raise Exception("unknown mode: "+args.mode)
+        
+        model = create_unet(input_shape, args.filters, args.mode, args.ker_init)
 
         if args.optimizer == "nesterov":
             optimizer = SGD(lr=args.lr, momentum=0.9, decay=0.0005, nesterov=True)
