@@ -17,10 +17,8 @@ app = Flask(__name__, static_url_path='')
 
 
 with K.tf.device('/cpu:0'):
-        model = create_unet((256, 256, 3), 1, 64)
+        model = create_unet((256, 256, 3), 64)
         model.load_weights("./data/2017-05-10-05-46-17_fil64_adam_lr0.0001_glorot_uniform_shape256x256_data_aug_weights.epoch0080-val_loss-0.70-val_dice_coef0.70.hdf5")
-        model2 = create_unet((256, 256, 4), 1, 64, heatmap=True)
-        model2.load_weights("./data/2017-05-12-06-02-02_fil64_adam_lr0.0001_glorot_uniform_shape256x256_learn_head_data_aug_mean_squared_error_weights.epoch0099-val_loss145.40-val_acc0.72.hdf5")
 
 
 @app.route('/')
@@ -59,13 +57,7 @@ def upload_file():
 
     with K.tf.device('/cpu:0'):
         output = model.predict(img)
-        print(img.shape, output.shape)
-        img2 = np.dstack((img[0], output[0]))
-        print(img2.shape)
-        img2 = np.expand_dims(img2, axis=0)
-        print(img2.shape)
-        output2 = model2.predict(img2)
-        _img = output2[0]
+        _img = output[0]
 
     filename += ".png"
     print(_img.dtype)
