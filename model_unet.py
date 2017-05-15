@@ -18,7 +18,7 @@ from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
 
 
-def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_init: str="glorot_uniform") -> Model:
+def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_init: str="glorot_uniform", activ:str="tanh") -> Model:
     '''
     reference models
     * https://github.com/phillipi/pix2pix/blob/master/models.lua#L47
@@ -46,7 +46,7 @@ def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_
     x = Conv2DTranspose(filters, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
     # 1x1 conv
     x = Conv2D(output_ch, kernel_size=(1, 1), strides=(1, 1), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
-    x = Activation("tanh")(x)
+    x = Activation(activ)(x)
 
     unet = Model(inputs=[input_tensor], outputs=[x])
     
