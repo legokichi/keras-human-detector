@@ -37,9 +37,11 @@ def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_
     x = BatchNormalization()( Conv2DTranspose(filters*1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e1])
     
     if heatmap:
+        output_ch = 1
         x = Conv2DTranspose(filters, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
         x = Conv2D(output_ch, kernel_size=(1, 1), strides=(1, 1), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
         x = Activation("relu")(x)
+        x = Reshape((in_shape[0], in_shape[1]))(x)
     else:
         x = Conv2DTranspose(output_ch, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
 
