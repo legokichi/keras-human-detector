@@ -2,10 +2,10 @@ from typing import Tuple, List, Text, Dict, Any
 
 if __name__ == '__main__':
     import os
-    os.environ['KERAS_BACKEND'] = 'theano'
-    os.environ["THEANO_FLAGS"] = "exception_verbosity=high,optimizer=None,device=cpu"
-    from keras.backend import set_image_data_format, set_floatx
-    # set_floatx('float16')
+    #os.environ['KERAS_BACKEND'] = 'theano'
+    #os.environ["THEANO_FLAGS"] = "exception_verbosity=high,optimizer=None,device=cpu"
+    from keras.backend import set_image_data_format, set_floatx, floatx
+    set_floatx('float16')
     # set_image_data_format('channels_first') # theano
     set_image_data_format("channels_last") # tensorflow
 
@@ -24,7 +24,7 @@ def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_
     * https://github.com/phillipi/pix2pix/blob/master/models.lua#L47
     * https://github.com/tdeboissiere/DeepLearningImplementations/blob/master/pix2pix/src/model/models.py#L317
     '''
-    input_tensor = Input(shape=in_shape) # type: Input
+    input_tensor = Input(shape=in_shape, dtype=floatx()) # type: Input
     # enc
     x =                       Conv2D(         filters*1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( input_tensor )       ; e1 = x
     x = BatchNormalization()( Conv2D(         filters*2, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) ) ); e2 = x
@@ -57,6 +57,9 @@ if __name__ == '__main__':
     from keras.utils import plot_model
     unet = create_unet((512, 512, 3), 1, 64)
     unet.summary()
+    unet.save_weights("unet.hdf5")
+    with open('unet.json', 'w') as f: f.write(unet.to_json())
+
     plot_model(unet, to_file='unet.png', show_shapes=True, show_layer_names=True)
     
     exit()
