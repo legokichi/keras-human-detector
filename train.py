@@ -38,13 +38,15 @@ if __name__ == '__main__':
     parser.add_argument("--resume",  action='store', type=str, default="", help='*_weights.hdf5')
     parser.add_argument("--initial_epoch", action='store', type=int, default=0, help='initial_epoch')
     parser.add_argument("--ker_init", action='store', type=str, default="glorot_uniform", help='conv2D kernel initializer')
-    parser.add_argument("--lr", action='store', type=float, default=0.001, help='learning late')
+    parser.add_argument("--lr", action='store', type=float, default=0.0001, help='learning late')
     parser.add_argument("--optimizer", action='store', type=str, default="adam", help='adam|nesterov')
     parser.add_argument("--filters", action='store', type=int, default=64, help='32|64|128')
     parser.add_argument("--batch_size", action='store', type=int, default=8, help='batch_size')
     parser.add_argument("--dir", action='store', type=str, default="./", help='mscoco dir')
     parser.add_argument("--data_aug", action='store_true', help='use data augmentation')
     parser.add_argument("--shape", action='store', type=int, default=256, help='input size width & height (power of 2)')
+    parser.add_argument("--activation", action='store', type=str, default="tanh", help='tanh, relu, ...')
+    parser.add_argument("--loss", action='store', type=str, default="mean_squared_error", help='mean_squared_error, ...')
 
     args = parser.parse_args()
 
@@ -56,6 +58,8 @@ if __name__ == '__main__':
     name += "_" + args.ker_init
     name += "_shape" + str(args.shape) + "x" + str(args.shape)
     name += "_batch_size" + str(args.batch_size)
+    name += "_" + args.activation
+    name += "_" + args.loss
     if args.data_aug: name += "_data_aug"
 
     print("name: ", name)
@@ -101,11 +105,10 @@ if __name__ == '__main__':
 
         input_shape = (resize_shape[0], resize_shape[1], 3)
         output_ch = 2
-        loss = "mean_squared_error"
-        name += "_mean_squared_error"
+        loss = args.loss
         metrics = ['accuracy']
         filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
-        model = create_unet(input_shape, output_ch, args.filters, args.ker_init)
+        model = create_unet(input_shape, output_ch, args.filters, args.ker_init, args.activation)
 
         if args.optimizer == "nesterov":
             optimizer = SGD(lr=args.lr, momentum=0.9, decay=0.0005, nesterov=True)
