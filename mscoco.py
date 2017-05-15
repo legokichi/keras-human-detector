@@ -184,18 +184,27 @@ class CamVid(DatasetMixin):
         infos = coco.loadImgs(coco.getImgIds(catIds=coco.getCatIds(catNms=['person']))) # type: List[dict]
         print("original:", len(infos))
         self.infos = [info for info in infos if check(coco, info, drop_crowd, drop_small)] # type: List[dict]
-        if False and self.data_aug:
-            self.coco2 = COCO(all_json_path) # type: COCO
-            coco = self.coco2
-            infos = coco.loadImgs(coco.getImgIds(catIds=coco.getCatIds()))
+        print("person:", len(self.infos))
+        if self.data_aug:
+            coco = COCO(all_json_path) # type: COCO
+            print(len(coco.getImgIds()))
+            infos = coco.loadImgs(coco.getImgIds())
+            _infos = []
+            print("all:", len(infos))
             for info in infos:
                 drop = False
                 for ann in coco.loadAnns(coco.getAnnIds(imgIds=[info['id']], iscrowd=0)):
                     for cat in coco.loadCats([ann["category_id"]]):
                         if cat["name"] == "person":
                             drop = True
-                if drop == False:
-                    self.infos.append(info)
+                            break
+                if drop: continue
+                _infos.append(info)
+            # 1/4 くらいダミーデータを足す
+            _infos = _infos[0:int(len(self.infos)/4)]
+            print("_infos:", len(_infos))
+            self.infos += _infos
+        print("finaly:", len(self.infos))
         self.seq = iaa.Sequential([
             iaa.Fliplr(0.5),
             #iaa.Crop(px=((0, 50), (0, 50), (0, 50), (0, 50))), # crop images from each side by 0 to 16px (randomly chosen)
@@ -241,7 +250,9 @@ class CamVid(DatasetMixin):
         mask_head = cv2.resize(mask_head, self.resize_shape)
 
         # binarize
-        # mask_all = mask_all > 0
+        mask_all[mask_all >= 0.5*255] = 0.95*255
+        mask_all[mask_all <  0.5*255] = 0.05 * 255
+        mask_head[mask_head < 0.01*255] = 0.01 * 255
 
         # concat
         mask = np.dstack((mask_all, mask_head))
