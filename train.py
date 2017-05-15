@@ -11,11 +11,11 @@ import os
 #os.environ["THEANO_FLAGS"] = "exception_verbosity=high,optimizer=None,device=cpu"
 #os.environ['THEANO_FLAGS']='mode=FAST_RUN,device=cpu,floatX=float32,optimizer=fast_compile'
 os.environ['KERAS_BACKEND'] = 'tensorflow'
-from keras.backend import set_image_data_format, set_floatx
+from keras.backend import set_image_data_format, set_floatx, floatx
 # keras.backend.backend()
 # keras.backend.set_epsilon(1e-07)
 # keras.backend.epsilon()
-#set_floatx('float16')
+set_floatx('float16')
 # keras.backend.floatx()
 # set_image_data_format('channels_first') # theano
 set_image_data_format("channels_last")
@@ -52,6 +52,7 @@ if __name__ == '__main__':
 
     name = args.dir + "/"
     name += datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+    name += "_" + floatx()
     name += "_fil" + str(args.filters)
     name += "_" + args.optimizer
     name += "_lr" + str(args.lr)

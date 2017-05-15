@@ -4,7 +4,7 @@ if __name__ == '__main__':
     import os
     #os.environ['KERAS_BACKEND'] = 'theano'
     #os.environ["THEANO_FLAGS"] = "exception_verbosity=high,optimizer=None,device=cpu"
-    from keras.backend import set_image_data_format, set_floatx, floatx
+    from keras.backend import set_image_data_format, set_floatx
     set_floatx('float16')
     # set_image_data_format('channels_first') # theano
     set_image_data_format("channels_last") # tensorflow
@@ -16,7 +16,7 @@ from keras.layers.merge import Concatenate
 from keras.layers.convolutional import Conv2D, Conv2DTranspose
 from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
-
+from keras.backend import floatx
 
 def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_init: str="glorot_uniform", activ:str="tanh") -> Model:
     '''

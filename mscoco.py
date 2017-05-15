@@ -13,6 +13,7 @@ from pycocotools.coco import COCO
 from pycocotools import mask as coco_mask
 from chainer.iterators import MultiprocessIterator, SerialIterator
 from chainer.dataset.dataset_mixin import DatasetMixin
+from keras.backend import cast_to_floatx
 
 def check(coco: COCO, info: dict, drop_crowd=False, drop_small=False, drop_minkey=False)-> bool:
     '''
@@ -265,9 +266,11 @@ def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, np.ndarray]]]) 
         batch = iter.__next__() # type: List[Tuple[np.ndarray, np.ndarray]]
         xs = [x for (x, _) in batch] # type: List[np.ndarray]
         ys = [y for (_, y) in batch] # type: List[np.ndarray]
-        _xs = np.array(xs) # (n, 480, 360, 3)
-        _ys = np.array(ys) # (n, 480, 360, n_classes)
-        yield (_xs, _ys)
+        xs = np.array(xs) # (n, 480, 360, 3)
+        ys = np.array(ys) # (n, 480, 360, n_classes)
+        xs = cast_to_floatx(xs)
+        ys = cast_to_floatx(ys)
+        yield (xs, ys)
 
 
 if __name__ == '__main__':
