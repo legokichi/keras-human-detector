@@ -18,7 +18,7 @@ from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
 from keras.backend import floatx
 
-def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_init: str="glorot_uniform", activ:str="tanh") -> Model:
+def create_unet(in_shape: Tuple[int,int,int], filters: int, ker_init: str="glorot_uniform") -> Model:
     '''
     reference models
     * https://github.com/phillipi/pix2pix/blob/master/models.lua#L47
@@ -48,9 +48,9 @@ def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_
     x = BatchNormalization()( Conv2DTranspose(filters*1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e1])
     
     # output1
-    x = Conv2DTranspose(output_ch, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+    x = Conv2DTranspose(1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
     x = Activation("sigmoid")(x)
-    output1 = Reshape((in_shape[0], in_shape[1]))(x)
+    output1 = Reshape((in_shape[0], in_shape[1]), name="output1")(x)
 
     # input2
     input_tensor2 = Concatenate()([input_tensor, x])
@@ -76,9 +76,9 @@ def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_
     
     # output2
     x = Conv2DTranspose(filters, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
-    x = Conv2D(output_ch, kernel_size=(1, 1), strides=(1, 1), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+    x = Conv2D(1, kernel_size=(1, 1), strides=(1, 1), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
     x = Activation("relu")(x)
-    output2 = Reshape((in_shape[0], in_shape[1]))(x)
+    output2 = Reshape((in_shape[0], in_shape[1]), name="output2")(x)
 
     unet = Model(inputs=[input_tensor], outputs=[output1, output2])
     
@@ -87,7 +87,7 @@ def create_unet(in_shape: Tuple[int,int,int], output_ch: int, filters: int, ker_
 
 if __name__ == '__main__':
     from keras.utils import plot_model
-    unet = create_unet((512, 512, 3), 1, 64)
+    unet = create_unet((512, 512, 3), 64)
     unet.summary()
     unet.save_weights("unet.hdf5")
     with open('unet.json', 'w') as f: f.write(unet.to_json())

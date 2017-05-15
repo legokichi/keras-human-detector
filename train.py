@@ -15,7 +15,7 @@ from keras.backend import set_image_data_format, set_floatx, floatx
 # keras.backend.backend()
 # keras.backend.set_epsilon(1e-07)
 # keras.backend.epsilon()
-set_floatx('float16')
+#set_floatx('float16')
 # keras.backend.floatx()
 # set_image_data_format('channels_first') # theano
 set_image_data_format("channels_last")
@@ -54,8 +54,6 @@ if __name__ == '__main__':
     parser.add_argument("--dir", action='store', type=str, default="./", help='mscoco dir')
     parser.add_argument("--data_aug", action='store_true', help='use data augmentation')
     parser.add_argument("--shape", action='store', type=int, default=256, help='input size width & height (power of 2)')
-    parser.add_argument("--activation", action='store', type=str, default="tanh", help='tanh, relu, ...')
-    parser.add_argument("--loss", action='store', type=str, default="mean_squared_error", help='mean_squared_error, ...')
 
     args = parser.parse_args()
 
@@ -68,8 +66,6 @@ if __name__ == '__main__':
     name += "_" + args.ker_init
     name += "_shape" + str(args.shape) + "x" + str(args.shape)
     name += "_batch_size" + str(args.batch_size)
-    name += "_" + args.activation
-    name += "_" + args.loss
     if args.data_aug: name += "_data_aug"
 
     print("name: ", name)
@@ -116,9 +112,9 @@ if __name__ == '__main__':
         input_shape = (resize_shape[0], resize_shape[1], 3)
         output_ch = 2
         loss = {'output1': dice_coef_loss, 'output2': 'mean_squared_error'}
-        metrics = {'output_1': dice_coef, 'output_2': 'accuracy'}
+        metrics = {'output1': dice_coef, 'output2': 'accuracy'}
         filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}.hdf5"
-        model = create_unet(input_shape, output_ch, args.filters, args.ker_init, args.activation)
+        model = create_unet(input_shape, args.filters, args.ker_init)
 
         if args.optimizer == "nesterov":
             optimizer = SGD(lr=args.lr, momentum=0.9, decay=0.0005, nesterov=True)

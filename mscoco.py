@@ -255,19 +255,19 @@ class CamVid(DatasetMixin):
         mask_all[mask_all <  0.5*255] = 0.05 * 255
         mask_head[mask_head < 0.01*255] = 0.01 * 255
 
-        return (img, {'output_1': mask_all, 'output_2': mask_head} )
+        return (img, {'output1': mask_all, 'output2': mask_head} )
 
 
-def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, np.ndarray]]]) -> Iterator[Tuple[np.ndarray, np.ndarray]] :
+def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, dict]]]) -> Iterator[Tuple[np.ndarray, np.ndarray]] :
     while True:
         batch = iter.__next__() # type: List[Tuple[np.ndarray, np.ndarray]]
         xs = [x for (x, _) in batch] # type: List[np.ndarray]
-        ys = [y for (_, y) in batch] # type: List[np.ndarray]
-        xs = np.array(xs) # (n, 480, 360, 3)
-        ys = np.array(ys) # (n, 480, 360, n_classes)
-        xs = cast_to_floatx(xs)
-        ys = cast_to_floatx(ys)
-        yield (xs, ys)
+        ys = [y["output1"] for (_, y) in batch] # type: List[np.ndarray]
+        zs = [y["output2"] for (_, y) in batch] # type: List[np.ndarray]
+        xs = cast_to_floatx(np.array(xs)) # (n, 480, 360, 3)
+        ys = cast_to_floatx(np.array(ys)) # (n, 480, 360, 1)
+        zs = cast_to_floatx(np.array(ys)) # (n, 480, 360, 1)
+        yield (xs, {"output1": ys, "output2": zs})
 
 
 if __name__ == '__main__':
