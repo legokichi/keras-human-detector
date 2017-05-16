@@ -67,5 +67,5 @@ env FLASK_APP=server.py flask run --host=0.0.0.0 --port 8888
 
 ## model
 
-![unet](https://github.com/legokichi/keras-human-detector/blob/multistage/unet.png?raw=true)
+![unet](https://github.com/legokichi/keras-human-detector/blob/hydra/unet.png?raw=true)
 
