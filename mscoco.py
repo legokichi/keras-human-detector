@@ -96,7 +96,7 @@ def create_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
 
     return mask_all
 
-def create_head_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
+def create_head_mask(coco: COCO, info: dict, debug=False, DISTANCE_SCALE=2) -> np.ndarray:
     # label = ["nose", "l-eye", "r-eye", "l-ear", "r-ear", "l-shoulder", "r-shoulder", "l-elbow", "r-elbow", "l-wrist", "r-wrist", "l-llium", "r-llium", "l-knee", "r-knee", "l-ankle", "r-ankle"]
     anns = coco.loadAnns(coco.getAnnIds(imgIds=[info['id']], iscrowd=False)) # type: List[dict]
     w, h = info["width"], info["height"] # type: Tuple[int, int]
@@ -141,7 +141,7 @@ def create_head_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
         distance = np.average(distances) # type: float
         assert distance > 0
 
-        kernel = gaussian_kernel(int(distance*2))
+        kernel = gaussian_kernel(int(distance*DISTANCE_SCALE))
         # normalize
         kernel = (kernel/kernel.max()*255).astype("uint8")
 
@@ -176,7 +176,7 @@ def gaussian_kernel(kernlen=21, nsig=3):
 
 class CamVid(DatasetMixin):
     def __init__(self, mode: str, keypoint_json_path: str, all_json_path: str, img_path: str, resize_shape: Tuple[int, int]=None,
-        data_aug: bool=False, drop_crowd=False, drop_small=False):
+        data_aug: bool=False, drop_crowd=False, drop_small=False, DISTANCE_SCALE=2.):
         self.mode = mode
         self.data_aug = data_aug
         self.img_path = img_path
@@ -187,6 +187,7 @@ class CamVid(DatasetMixin):
         print("original:", len(infos))
         self.infos = [info for info in infos if check(coco, info, drop_crowd, drop_small)] # type: List[dict]
         print("person:", len(self.infos))
+        self.DISTANCE_SCALE = DISTANCE_SCALE
         if self.data_aug:
             coco = COCO(all_json_path)
             print(len(coco.getImgIds()))
@@ -229,7 +230,7 @@ class CamVid(DatasetMixin):
 
         img = load_image(info, self.img_path)
         mask_all = create_mask(self.coco, info)
-        mask_head = create_head_mask(self.coco, info)
+        mask_head = create_head_mask(self.coco, info, DISTANCE_SCALE=self.DISTANCE_SCALE)
 
         if self.data_aug:
             # data augumentation
@@ -261,6 +262,8 @@ class CamVid(DatasetMixin):
         elif self.mode == "heatmap":
             # concat
             img = np.dstack((img, mask_all))
+            return (img, mask_head)
+        elif self.mode == "integrated":
             return (img, mask_head)
         else:
             raise Exception("unknown mode: "+self.mode)
