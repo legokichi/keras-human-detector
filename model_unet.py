@@ -18,17 +18,7 @@ from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
 from keras.backend import floatx
 
-def create_unet(in_shape: Tuple[int,int,int], filters: int, mode: str, ker_init: str="glorot_uniform") -> Model:
-    '''
-    reference models
-    * https://github.com/phillipi/pix2pix/blob/master/models.lua#L47
-    * https://github.com/tdeboissiere/DeepLearningImplementations/blob/master/pix2pix/src/model/models.py#L317
-    '''
-    # input1
-    input_tensor = Input(shape=in_shape, dtype=floatx()) # type: Input
-
-    # 1st stage
-
+def create_enc_dec(input_tensor: Any, filters: int, mode: str, ker_init: str="glorot_uniform") -> Any:
     # enc
     x =                       Conv2D(         filters*1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( input_tensor )       ; e1 = x
     x = BatchNormalization()( Conv2D(         filters*2, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) ) ); e2 = x
@@ -46,7 +36,41 @@ def create_unet(in_shape: Tuple[int,int,int], filters: int, mode: str, ker_init:
     x = BatchNormalization()( Conv2DTranspose(filters*4, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e3])
     x = BatchNormalization()( Conv2DTranspose(filters*2, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e2])
     x = BatchNormalization()( Conv2DTranspose(filters*1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e1])
-    
+    return x
+
+def create_unet(in_shape: Tuple[int,int,int], filters: int, mode: str, ker_init: str="glorot_uniform") -> Model:
+    '''
+    reference models
+    * https://github.com/phillipi/pix2pix/blob/master/models.lua#L47
+    * https://github.com/tdeboissiere/DeepLearningImplementations/blob/master/pix2pix/src/model/models.py#L317
+    '''
+    # input1
+    input_tensor = Input(shape=in_shape, dtype=floatx()) # type: Input
+
+    # 1st stage
+    x = create_enc_dec(input_tensor, filters, mode, ker_init)
+
+    if mode == "multistage":
+        # output1
+        x = Conv2DTranspose(1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+        x = Activation("sigmoid")(x)
+        output1 = Reshape((in_shape[0], in_shape[1]), name="output1")(x)
+        
+        # input2
+        input_tensor2 = Concatenate()([input_tensor, x])
+
+        # 2nd stage
+        x = create_enc_dec(input_tensor2, filters, mode, ker_init)
+        
+        # output2
+        x = Conv2DTranspose(filters, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+        x = Conv2D(1, kernel_size=(1, 1), strides=(1, 1), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+        x = Activation("relu")(x)
+        output2 = Reshape((in_shape[0], in_shape[1]), name="output2")(x)
+
+        unet = Model(inputs=[input_tensor], outputs=[output1, output2])
+
+        return unet
 
     if mode == "heatmap" or mode == "integrated":
         x = Conv2DTranspose(filters, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )

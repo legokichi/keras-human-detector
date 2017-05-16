@@ -54,7 +54,7 @@ if __name__ == '__main__':
     parser.add_argument("--dir", action='store', type=str, default="./", help='mscoco dir')
     parser.add_argument("--data_aug", action='store_true', help='use data augmentation')
     parser.add_argument("--shape", action='store', type=int, default=256, help='input size width & height (power of 2)')
-    parser.add_argument("--mode", action='store', type=str, default="heatmap", help='heatmap | binarize')
+    parser.add_argument("--mode", action='store', type=str, default="heatmap", help='heatmap | binarize | integrated | multistage')
 
     args = parser.parse_args()
 
@@ -111,7 +111,12 @@ if __name__ == '__main__':
         tensorflow_backend.set_learning_phase(1)
         
 
-        if args.mode == "heatmap":
+        if args.mode == "multistage":
+            input_shape = (resize_shape[0], resize_shape[1], 3)
+            loss = {'output1': dice_coef_loss, 'output2': 'mean_squared_error'}
+            metrics = {'output1': dice_coef, 'output2': 'accuracy'}
+            filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}.hdf5"
+        elif args.mode == "heatmap":
             input_shape = (resize_shape[0], resize_shape[1], 4)
             loss = "mean_squared_error" # type: Any
             metrics = ["accuracy"] # type: Any

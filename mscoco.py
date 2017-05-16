@@ -242,11 +242,11 @@ class CamVid(DatasetMixin):
         mask_head = cv2.resize(mask_head, self.resize_shape)
 
         # binarize
-        mask_all[mask_all >= 0.5*255] = 0.95 * 255
-        mask_all[mask_all <  0.5*255] = 0.05 * 255
-        mask_head[mask_head < 0.01*255] = 0.01 * 255
+        mask_all = mask_all > 0
 
-        if self.mode == "binarize":
+        if self.mode == "multistage":
+            return (img, {'output1': mask_all, 'output2': mask_head} )
+        elif self.mode == "binarize":
             return (img, mask_all)
         elif self.mode == "heatmap":
             # concat
@@ -258,14 +258,23 @@ class CamVid(DatasetMixin):
             raise Exception("unknown mode: "+self.mode)
 
 
-def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, np.ndarray]]]) -> Iterator[Tuple[np.ndarray, np.ndarray]] :
+def convert_to_keras_batch(iter: Iterator[List[Tuple[np.ndarray, Union[np.ndarray, dict]]]]) -> Iterator[Tuple[np.ndarray, Union[np.ndarray, dict]]] :
     while True:
         batch = iter.__next__() # type: List[Tuple[np.ndarray, np.ndarray]]
-        xs = [x for (x, _) in batch] # type: List[np.ndarray]
-        ys = [y for (_, y) in batch] # type: List[np.ndarray]
-        xs = cast_to_floatx(np.array(xs)) # (n, 480, 360, 3)
-        ys = cast_to_floatx(np.array(ys)) # (n, 480, 360, 1)
-        yield (xs, ys)
+        if isinstance(batch[0][1], dict):
+            xs = [x for (x, _) in batch] # type: List[np.ndarray]
+            ys = [y["output1"] for (_, y) in batch] # type: List[np.ndarray]
+            zs = [y["output2"] for (_, y) in batch] # type: List[np.ndarray]
+            xs = cast_to_floatx(np.array(xs)) # (n, 480, 360, 3)
+            ys = cast_to_floatx(np.array(ys)) # (n, 480, 360, 1)
+            zs = cast_to_floatx(np.array(ys)) # (n, 480, 360, 1)
+            yield (xs, {"output1": ys, "output2": zs})
+        else:
+            xs = [x for (x, _) in batch]
+            ys = [y for (_, y) in batch]
+            xs = cast_to_floatx(np.array(xs)) # (n, 480, 360, 3)
+            ys = cast_to_floatx(np.array(ys)) # (n, 480, 360, 1)
+            yield (xs, ys)
 
 
 if __name__ == '__main__':
