@@ -91,7 +91,7 @@ def create_unet(in_shape: Tuple[int,int,int], filters: int, mode: str, ker_init:
 
 if __name__ == '__main__':
     from keras.utils import plot_model
-    unet = create_unet((512, 512, 3), 64, "heatmap")
+    unet = create_unet((256, 256, 3), 64, "multistage")
     unet.summary()
     unet.save_weights("unet.hdf5")
     with open('unet.json', 'w') as f: f.write(unet.to_json())
