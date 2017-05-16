@@ -126,8 +126,8 @@ if __name__ == '__main__':
             loss = "mean_squared_error"
             metrics = ["accuracy"]
             filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_acc{val_acc:.2f}.hdf5"
-            train.DISTANCE_SCALE = 4.
-            #train.DISTANCE_SCALE = 2.
+            train.DISTANCE_SCALE = 8.0
+            val.DISTANCE_SCALE = 8.0
         else:
             raise Exception("unknown mode: "+args.mode)
         

@@ -83,17 +83,6 @@ def create_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
             mask[mask > 0] = 255
             mask_all += mask
 
-        keys = ann["keypoints"] # type: List[int]
-        if debug: 
-            i, length = 0, len(keys)
-            while i < length:
-                x, y, v = keys[i], keys[i+1], keys[i+2]  # type: Tuple[int, int, int]
-                text = str(int(i/3))
-                i += 3
-                if v != 2: continue
-                mask_all[y, x] = 128
-                cv2.putText(mask_all, text, (x, y), cv2.FONT_HERSHEY_PLAIN, 1, (128,128,128))
-
     return mask_all
 
 def create_head_mask(coco: COCO, info: dict, debug=False, DISTANCE_SCALE=2) -> np.ndarray:
@@ -152,11 +141,7 @@ def create_head_mask(coco: COCO, info: dict, debug=False, DISTANCE_SCALE=2) -> n
         mask_head = np.asarray(mask_head_img)
         mask_head.flags.writeable = True
         
-        if debug: 
-            mask_head[head_center[1], head_center[0]] = 255
-            # 2 is visible
-            cv2.putText(mask_head, "+", head_center, cv2.FONT_HERSHEY_PLAIN, 1, (255,255,255))
-
+        
         # masking human region
         mask_all += (mask_one_person > 0).astype("uint8") * mask_head
 
@@ -188,7 +173,7 @@ class CamVid(DatasetMixin):
         self.infos = [info for info in infos if check(coco, info, drop_crowd, drop_small)] # type: List[dict]
         print("person:", len(self.infos))
         self.DISTANCE_SCALE = DISTANCE_SCALE
-        if self.data_aug:
+        if False and self.data_aug:
             coco = COCO(all_json_path)
             print(len(coco.getImgIds()))
             infos = coco.loadImgs(coco.getImgIds())
@@ -219,8 +204,8 @@ class CamVid(DatasetMixin):
             #),
         ]) # type: iaa.Sequential
         self.seq_noise = iaa.Sequential([
-            iaa.GaussianBlur(sigma=(0, 0.5)),
-            iaa.AdditiveGaussianNoise(scale=(0., 0.1*255), per_channel=0.5),
+            #iaa.GaussianBlur(sigma=(0, 0.5)),
+            #iaa.AdditiveGaussianNoise(scale=(0., 0.1*255), per_channel=0.5),
             iaa.ContrastNormalization((0.5, 2.0), per_channel=0.5),
         ]) # type: iaa.Sequential
     def __len__(self) -> int:
@@ -232,6 +217,10 @@ class CamVid(DatasetMixin):
         mask_all = create_mask(self.coco, info)
         mask_head = create_head_mask(self.coco, info, DISTANCE_SCALE=self.DISTANCE_SCALE)
 
+        assert img.dtype == "uint8"
+        assert mask_all.dtype == "uint8"
+        assert mask_head.dtype == "uint8"
+
         if self.data_aug:
             # data augumentation
             seq_det = self.seq.to_deterministic()
@@ -242,7 +231,7 @@ class CamVid(DatasetMixin):
             img  = seq_det.augment_images(img)
             mask_all = seq_det.augment_images(mask_all)
             mask_head = seq_det.augment_images(mask_head)
-            img  = self.seq_noise.augment_images(img)
+            img  = self.seq_noise.augment_images(img) # add noise
             img  = np.squeeze(img)
             mask_all  = np.squeeze(mask_all)
             mask_head = np.squeeze(mask_head)
@@ -253,7 +242,7 @@ class CamVid(DatasetMixin):
         mask_head = cv2.resize(mask_head, self.resize_shape)
 
         # binarize
-        mask_all[mask_all >= 0.5*255] = 0.95*255
+        mask_all[mask_all >= 0.5*255] = 0.95 * 255
         mask_all[mask_all <  0.5*255] = 0.05 * 255
         mask_head[mask_head < 0.01*255] = 0.01 * 255
 
