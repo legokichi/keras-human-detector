@@ -111,7 +111,7 @@ if __name__ == '__main__':
         tensorflow_backend.set_learning_phase(1)
         
 
-        if args.mode == "multistage":
+        if args.mode == "multistage" or args.mode == "hydra":
             input_shape = (resize_shape[0], resize_shape[1], 3)
             loss = {'output1': dice_coef_loss, 'output2': 'mean_squared_error'}
             metrics = {'output1': dice_coef, 'output2': 'accuracy'}

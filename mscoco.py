@@ -244,7 +244,7 @@ class CamVid(DatasetMixin):
         # binarize
         mask_all = mask_all > 0
 
-        if self.mode == "multistage":
+        if self.mode == "multistage" or self.mode == "hydra":
             return (img, {'output1': mask_all, 'output2': mask_head} )
         elif self.mode == "binarize":
             return (img, mask_all)

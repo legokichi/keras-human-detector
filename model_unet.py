@@ -18,7 +18,32 @@ from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
 from keras.backend import floatx
 
-def create_enc_dec(input_tensor: Any, filters: int, mode: str, ker_init: str="glorot_uniform") -> Any:
+def create_hydra(neckNum: int, input_tensor: Input, filters: int, mode: str, ker_init: str="glorot_uniform") -> List[Any]:
+    # enc
+    x =                       Conv2D(         filters*1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( input_tensor )       ; e1 = x
+    x = BatchNormalization()( Conv2D(         filters*2, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) ) ); e2 = x
+    x = BatchNormalization()( Conv2D(         filters*4, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) ) ); e3 = x
+    x = BatchNormalization()( Conv2D(         filters*8, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) ) ); e4 = x
+    x = BatchNormalization()( Conv2D(         filters*8, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) ) ); e5 = x
+    x = BatchNormalization()( Conv2D(         filters*8, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) ) ); e6 = x
+    x = BatchNormalization()( Conv2D(         filters*8, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) ) ); e7 = x
+    x =                       Conv2D(         filters*8, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) )  ; e8 = x
+    outputs = [] # type: List[Any]
+    for i in range(neckNum):
+        x = e8
+        # dec i
+        x = BatchNormalization()( Conv2DTranspose(filters*8, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([Dropout(0.5)(x), e7])
+        x = BatchNormalization()( Conv2DTranspose(filters*8, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([Dropout(0.5)(x), e6])
+        x = BatchNormalization()( Conv2DTranspose(filters*8, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([Dropout(0.5)(x), e5])
+        x = BatchNormalization()( Conv2DTranspose(filters*8, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e4])
+        x = BatchNormalization()( Conv2DTranspose(filters*4, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e3])
+        x = BatchNormalization()( Conv2DTranspose(filters*2, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e2])
+        x = BatchNormalization()( Conv2DTranspose(filters*1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) ) ); x = Concatenate()([x, e1])
+        outputs.append(x)
+    return outputs
+
+
+def create_enc_dec(input_tensor: Input, filters: int, mode: str, ker_init: str="glorot_uniform") -> Any:
     # enc
     x =                       Conv2D(         filters*1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( input_tensor )       ; e1 = x
     x = BatchNormalization()( Conv2D(         filters*2, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( LeakyReLU(0.2)(x) ) ); e2 = x
@@ -44,8 +69,29 @@ def create_unet(in_shape: Tuple[int,int,int], filters: int, mode: str, ker_init:
     * https://github.com/phillipi/pix2pix/blob/master/models.lua#L47
     * https://github.com/tdeboissiere/DeepLearningImplementations/blob/master/pix2pix/src/model/models.py#L317
     '''
+
     # input1
     input_tensor = Input(shape=in_shape, dtype=floatx()) # type: Input
+
+    if mode == "hydra":
+        outputs = create_hydra(2, input_tensor, filters, mode, ker_init)
+        assert len(outputs) == 2
+
+        # binarize
+        x = outputs[0]
+        x = Conv2DTranspose(1, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+        x = Activation("sigmoid")(x)
+        outputs[0] = Reshape((in_shape[0], in_shape[1]), name="output1")(x)
+
+        # heatmap
+        x = outputs[1]
+        x = Conv2DTranspose(filters, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+        x = Conv2D(1, kernel_size=(1, 1), strides=(1, 1), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
+        x = Activation("relu")(x)
+        outputs[1] = Reshape((in_shape[0], in_shape[1]), name="output2")(x)
+        
+        hydra = Model(inputs=[input_tensor], outputs=outputs)
+        return hydra
 
     # 1st stage
     x = create_enc_dec(input_tensor, filters, mode, ker_init)
@@ -91,7 +137,7 @@ def create_unet(in_shape: Tuple[int,int,int], filters: int, mode: str, ker_init:
 
 if __name__ == '__main__':
     from keras.utils import plot_model
-    unet = create_unet((256, 256, 3), 64, "multistage")
+    unet = create_unet((256, 256, 3), 64, "hydra")
     unet.summary()
     unet.save_weights("unet.hdf5")
     with open('unet.json', 'w') as f: f.write(unet.to_json())
