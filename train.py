@@ -119,7 +119,7 @@ if __name__ == '__main__':
         elif args.mode == "binarize":
             input_shape = (resize_shape[0], resize_shape[1], 3)
             loss = dice_coef_loss
-            metrics = ["dice_coef"]
+            metrics = [dice_coef]
             filename = "_weights.epoch{epoch:04d}-val_loss{val_loss:.2f}-val_dice_coef{val_dice_coef:.2f}.hdf5"
         else:
             raise Exception("unknown mode: "+args.mode)
