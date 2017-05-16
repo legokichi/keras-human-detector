@@ -12,7 +12,7 @@ if __name__ == '__main__':
 from keras.models import Model
 from keras.layers import Input
 from keras.layers.core import Activation, Dropout, Reshape
-from keras.layers.merge import Concatenate
+from keras.layers.merge import Concatenate, Multiply
 from keras.layers.convolutional import Conv2D, Conv2DTranspose
 from keras.layers.normalization import BatchNormalization
 from keras.layers.advanced_activations import LeakyReLU
@@ -88,7 +88,7 @@ def create_unet(in_shape: Tuple[int,int,int], filters: int, mode: str, ker_init:
         x = Conv2DTranspose(filters, kernel_size=(4, 4), strides=(2, 2), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
         x = Conv2D(1, kernel_size=(1, 1), strides=(1, 1), padding="same", kernel_initializer=ker_init)( Activation("relu")(x) )
         x = Activation("relu")(x)
-        outputs[1] = Reshape((in_shape[0], in_shape[1]), name="output2")(x)
+        outputs[1] = Multiply(name="output2")([Reshape((in_shape[0], in_shape[1]))(x), outputs[0]])
         
         hydra = Model(inputs=[input_tensor], outputs=outputs)
         return hydra
