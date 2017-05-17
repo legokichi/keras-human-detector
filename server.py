@@ -1,5 +1,6 @@
 from typing import Tuple, List, Text, Dict, Any, Iterator
 import sys
+sys.path.append("/usr/local/Cellar/opencv3/3.2.0/lib/python3.5/site-packages/") # mac opencv path
 import cv2
 import numpy as np
 import time
@@ -17,10 +18,10 @@ app = Flask(__name__, static_url_path='')
 
 
 with K.tf.device('/cpu:0'):
-        model = create_unet((256, 256, 3), 1, 64)
-        model.load_weights("./data/2017-05-10-05-46-17_fil64_adam_lr0.0001_glorot_uniform_shape256x256_data_aug_weights.epoch0080-val_loss-0.70-val_dice_coef0.70.hdf5")
-        model2 = create_unet((256, 256, 4), 1, 64, heatmap=True)
-        model2.load_weights("./data/2017-05-12-06-02-02_fil64_adam_lr0.0001_glorot_uniform_shape256x256_learn_head_data_aug_mean_squared_error_weights.epoch0099-val_loss145.40-val_acc0.72.hdf5")
+    model = create_unet((512, 512, 3), 64, "binarize")
+    model.load_weights("./data/2017-04-28-11-11-28_fil64_adam_lr0.0001_glorot_uniform_dice_coef_weights.epoch0081-val_loss-0.75-val_dice_coef0.75.hdf5")
+    model2 = create_unet((512, 512, 4), 64, "heatmap")
+    model2.load_weights("./data/2017-05-12-06-02-02_fil64_adam_lr0.0001_glorot_uniform_shape256x256_learn_head_data_aug_mean_squared_error_weights.epoch0081-val_loss129.64-val_acc0.71.hdf5")
 
 
 @app.route('/')
@@ -51,7 +52,7 @@ def upload_file():
     start = time.time()
 
     img = io.imread(filename)
-    img = cv2.resize(img, (256, 256))
+    img = cv2.resize(img, (512, 512))
     if img.shape[2] == 4:
         print("drop alpha channel")
         img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
@@ -59,11 +60,7 @@ def upload_file():
 
     with K.tf.device('/cpu:0'):
         output = model.predict(img)
-        print(img.shape, output.shape)
-        img2 = np.dstack((img[0], output[0]))
-        print(img2.shape)
-        img2 = np.expand_dims(img2, axis=0)
-        print(img2.shape)
+        img2 = np.expand_dims(np.dstack((img[0], output[0])), axis=0)
         output2 = model2.predict(img2)
         _img = output2[0]
 
