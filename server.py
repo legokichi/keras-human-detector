@@ -1,5 +1,6 @@
 from typing import Tuple, List, Text, Dict, Any, Iterator
 import sys
+sys.path.append("/usr/local/Cellar/opencv3/3.2.0/lib/python3.5/site-packages/") # mac opencv path
 import cv2
 import numpy as np
 import time
