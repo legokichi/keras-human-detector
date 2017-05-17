@@ -30,7 +30,7 @@ from chainer.iterators import MultiprocessIterator, SerialIterator
 from chainer.dataset.dataset_mixin import DatasetMixin
 
 from model_unet import create_unet
-from mscoco import CamVid, convert_to_keras_batch
+from mscoco import CamVid, convert_to_keras_batch, CamVidCrowd
 
 def dice_coef(y_true: K.tf.Tensor, y_pred: K.tf.Tensor) -> K.tf.Tensor:
     y_true = K.flatten(y_true)
@@ -74,8 +74,12 @@ if __name__ == '__main__':
 
     resize_shape = (args.shape, args.shape)
 
-    train = CamVid(args.mode, args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/annotations/instances_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=True) # type: DatasetMixin
-    valid = CamVid(args.mode, args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/annotations/instances_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+    if args.mode != "binarize":
+        train = CamVid(args.mode, args.dir+"/annotations/person_keypoints_train2014.json", args.dir+"/annotations/instances_train2014.json", args.dir+"/train2014/", resize_shape, data_aug=True) # type: DatasetMixin
+        valid = CamVid(args.mode, args.dir+"/annotations/person_keypoints_val2014.json",   args.dir+"/annotations/instances_val2014.json",   args.dir+"/val2014/",   resize_shape) # type: DatasetMixin
+    else:
+        train = CamVidCrowd(args.dir+"/annotations/instances_train2014.json", args.dir+"/train2014/", resize_shape)
+        valid = CamVidCrowd(args.dir+"/annotations/instances_val2014.json", args.dir+"/val2014/", resize_shape)
 
     print("train:", len(train))
     print("valid:", len(valid))

@@ -69,7 +69,7 @@ def load_image(info: dict, dir: Union[str, None]) -> np.ndarray :
 
 
 def create_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
-    anns = coco.loadAnns(coco.getAnnIds(imgIds=[info['id']], iscrowd=False)) # type: List[dict]
+    anns = coco.loadAnns(coco.getAnnIds(imgIds=[info['id']], iscrowd=0)) # type: List[dict]
     w, h = info["width"], info["height"] # type: Tuple[int, int]
     mask_all = np.zeros((h, w), np.uint8) # type: np.ndarray
 
@@ -87,7 +87,7 @@ def create_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
 
 def create_head_mask(coco: COCO, info: dict, debug=False, DISTANCE_SCALE=2) -> np.ndarray:
     # label = ["nose", "l-eye", "r-eye", "l-ear", "r-ear", "l-shoulder", "r-shoulder", "l-elbow", "r-elbow", "l-wrist", "r-wrist", "l-llium", "r-llium", "l-knee", "r-knee", "l-ankle", "r-ankle"]
-    anns = coco.loadAnns(coco.getAnnIds(imgIds=[info['id']], iscrowd=False)) # type: List[dict]
+    anns = coco.loadAnns(coco.getAnnIds(imgIds=[info['id']], iscrowd=0)) # type: List[dict]
     w, h = info["width"], info["height"] # type: Tuple[int, int]
     
     mask_all = np.zeros((h, w), np.uint8) # type: np.ndarray
@@ -159,8 +159,49 @@ def gaussian_kernel(kernlen=21, nsig=3):
     kernel = kernel_raw/kernel_raw.sum()
     return kernel
 
+class CamVidCrowd(DatasetMixin):
+    def __init__(self, json_path: str, img_path: str, resize_shape: Tuple[int, int]):
+        self.img_path = img_path
+        self.resize_shape = resize_shape
+        self.coco = COCO(json_path)
+        coco = self.coco
+        self.infos = coco.loadImgs(coco.getImgIds(catIds=coco.getCatIds(catNms=['person'])))
+        self.seq = iaa.Sequential([
+            iaa.Fliplr(0.5),
+        ]) # type: iaa.Sequential
+        self.seq_noise = iaa.Sequential([
+            iaa.ContrastNormalization((0.5, 2.0), per_channel=0.5),
+        ]) # type: iaa.Sequential
+    def __len__(self) -> int:
+        return len(self.infos)
+    def get_example(self, i) -> Tuple[np.ndarray, np.ndarray]:
+        info = self.infos[i]
+        img = load_image(info, self.img_path)
+        mask = create_mask(self.coco, info)
+
+        seq_det = self.seq.to_deterministic()
+
+        img  = np.expand_dims(img, axis=0)
+        mask = np.expand_dims(mask, axis=0)
+        img  = seq_det.augment_images(img)
+        mask = seq_det.augment_images(mask)
+        img  = self.seq_noise.augment_images(img)
+        img  = np.squeeze(img)
+        mask  = np.squeeze(mask)
+
+        # resize
+        img  = cv2.resize(img, self.resize_shape)
+        mask = cv2.resize(mask, self.resize_shape)
+
+        # binarize
+        mask = mask > 0
+
+        return (img, mask)
+
+
+
 class CamVid(DatasetMixin):
-    def __init__(self, mode: str, keypoint_json_path: str, all_json_path: str, img_path: str, resize_shape: Tuple[int, int]=None,
+    def __init__(self, mode: str, keypoint_json_path: str, all_json_path: str, img_path: str, resize_shape: Tuple[int, int],
         data_aug: bool=False, drop_crowd=False, drop_small=False, DISTANCE_SCALE=2.):
         self.mode = mode
         self.data_aug = data_aug
@@ -210,7 +251,7 @@ class CamVid(DatasetMixin):
         ]) # type: iaa.Sequential
     def __len__(self) -> int:
         return len(self.infos)
-    def get_example(self, i) -> Tuple[np.ndarray, dict]:
+    def get_example(self, i) -> Tuple[np.ndarray, Union[np.ndarray, dict]]:
         info = self.infos[i]
 
         img = load_image(info, self.img_path)
