@@ -8,22 +8,15 @@
 <script>
 document.getElementById('files').addEventListener('change', (ev)=>{
   const files = Array.from(ev.target.files);
-  Promise.all([
-    detect(files).then((blob)=> fetchImage(URL.createObjectURL(blob)) ),
-    Promise.all(files.map((file)=> fetchImage(URL.createObjectURL(file)) ) ),
-  ]).then(([retImg, imgs])=>{
-    console.log(retImg, imgs);
-    img = imgs[0];
+  detect(files).then(URL.createObjectURL).then(fetchImage).then((img)=>{
     document.body.appendChild(img);
-    document.body.appendChild(retImg);
     URL.revokeObjectURL(img.src)
-    URL.revokeObjectURL(retImg.src)
   });
 });
 
 function fetchImage(url) {
   return new Promise((resolve, reject)=>{
-    var img = new Image();
+    const img = new Image();
     img.src = url;
     img.onload = ()=> resolve(img);
     img.onerror = reject;
