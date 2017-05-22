@@ -67,6 +67,47 @@ def load_image(info: dict, dir: Union[str, None]) -> np.ndarray :
     elif  img.ndim == 2: img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
     return img
 
+from random import randint
+def wrap(img, dest_width, dest_height):
+    if img.ndim > 2:
+        ch = img.shape[2]
+    else:
+        ch = 1
+    dest = np.zeros((dest_width, dest_height, ch), dtype="uint8")
+    height = img.shape[0]
+    width = img.shape[1]
+    if width<height:
+            dest_width = int(dest_height/height * width)
+    elif width>height:
+            dest_height = int(dest_width/width * height)
+    img = cv2.resize(img, (dest_width, dest_height))
+    rangeX = max(0, dest.shape[1] - img.shape[1])
+    rangeY = max(0, dest.shape[0] - img.shape[0])
+    _img = Image.fromarray(img)
+    _dest = Image.fromarray(dest)
+    _dest.paste(_img, (randint(0, rangeX), randint(0, rangeY)))
+    dest = np.asarray(_dest)
+    dest.flags.writeable = True
+    return dest
+
+def clip(img: np.ndarray, x, y, w, h)-> np.ndarray:
+    #assert img.ndim == 2
+    height = img.shape[0]
+    width = img.shape[1]
+    startY = max(0, y)
+    stopY = min(y+h, height)
+    startX = max(0, x)
+    stopX = min(x+w, width)
+    return img[startY:stopY, startX:stopX]
+
+from random import randint
+def randclip(img, dest_width, dest_height):
+    height = img.shape[0]
+    width = img.shape[1]
+    rangeX = max(0, width - dest_width)
+    rangeY = max(0, height - dest_height)
+    return clip(img, randint(0, rangeX), randint(0, rangeY), dest_width, dest_height)
+
 
 def create_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
     anns = coco.loadAnns(coco.getAnnIds(imgIds=[info['id']], iscrowd=0)) # type: List[dict]
@@ -190,8 +231,8 @@ class CamVidCrowd(DatasetMixin):
         mask  = np.squeeze(mask)
 
         # resize
-        img  = cv2.resize(img, self.resize_shape)
-        mask = cv2.resize(mask, self.resize_shape)
+        img  = wrap(img, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(img, self.resize_shape)
+        mask = wrap(mask, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(mask, self.resize_shape)
 
         # binarize
         mask = mask > 0
@@ -278,9 +319,9 @@ class CamVid(DatasetMixin):
             mask_head = np.squeeze(mask_head)
 
         # resize
-        img  = cv2.resize(img, self.resize_shape)
-        mask_all = cv2.resize(mask_all, self.resize_shape)
-        mask_head = cv2.resize(mask_head, self.resize_shape)
+        img  = wrap(img, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(img, self.resize_shape)
+        mask = wrap(mask, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(mask, self.resize_shape)
+        mask_head = wrap(mask_head, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(mask_head, self.resize_shape)
 
         # binarize
         mask_all = mask_all > 0

@@ -126,7 +126,7 @@ def create_unet(in_shape: Tuple[int,int,int], filters: int, mode: str, ker_init:
 
 if __name__ == '__main__':
     from keras.utils import plot_model
-    unet = create_unet((256, 256, 3), 64, "hydra")
+    unet = create_unet((256, 256, 3), 64, "binarize")
     unet.summary()
     unet.save_weights("unet.hdf5")
     with open('unet.json', 'w') as f: f.write(unet.to_json())
