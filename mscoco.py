@@ -15,7 +15,7 @@ from chainer.iterators import MultiprocessIterator, SerialIterator
 from chainer.dataset.dataset_mixin import DatasetMixin
 from keras.backend import cast_to_floatx
 
-def check(coco: COCO, info: dict, drop_crowd=False, drop_small=False, drop_minkey=False)-> bool:
+def check(coco: COCO, info: dict, drop_crowd=False, drop_small=True, drop_minkey=True)-> bool:
     '''
     mscoco の画像から使えそうなものを判定する
     '''
@@ -67,13 +67,13 @@ def load_image(info: dict, dir: Union[str, None]) -> np.ndarray :
     elif  img.ndim == 2: img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
     return img
 
-from random import randint
-def wrap(img, dest_width, dest_height):
+from random import random
+def wrap(img, dest_width, dest_height, randX, randY):
     if img.ndim > 2:
         ch = img.shape[2]
+        dest = np.zeros((dest_width, dest_height, ch), dtype="uint8")
     else:
-        ch = 1
-    dest = np.zeros((dest_width, dest_height, ch), dtype="uint8")
+        dest = np.zeros((dest_width, dest_height), dtype="uint8")
     height = img.shape[0]
     width = img.shape[1]
     if width<height:
@@ -85,7 +85,7 @@ def wrap(img, dest_width, dest_height):
     rangeY = max(0, dest.shape[0] - img.shape[0])
     _img = Image.fromarray(img)
     _dest = Image.fromarray(dest)
-    _dest.paste(_img, (randint(0, rangeX), randint(0, rangeY)))
+    _dest.paste(_img, (int(rangeX*randX), int(rangeY*randY)))
     dest = np.asarray(_dest)
     dest.flags.writeable = True
     return dest
@@ -100,13 +100,12 @@ def clip(img: np.ndarray, x, y, w, h)-> np.ndarray:
     stopX = min(x+w, width)
     return img[startY:stopY, startX:stopX]
 
-from random import randint
-def randclip(img, dest_width, dest_height):
+def randclip(img, dest_width, dest_height, randX, randY):
     height = img.shape[0]
     width = img.shape[1]
     rangeX = max(0, width - dest_width)
     rangeY = max(0, height - dest_height)
-    return clip(img, randint(0, rangeX), randint(0, rangeY), dest_width, dest_height)
+    return clip(img, int(rangeX*randX), int(rangeY*randY), dest_width, dest_height)
 
 
 def create_mask(coco: COCO, info: dict, debug=False) -> np.ndarray:
@@ -231,8 +230,10 @@ class CamVidCrowd(DatasetMixin):
         mask  = np.squeeze(mask)
 
         # resize
-        img  = wrap(img, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(img, self.resize_shape)
-        mask = wrap(mask, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(mask, self.resize_shape)
+        randX = random()
+        randY = random()
+        img  = wrap(img, self.resize_shape[0], self.resize_shape[1], randX, randY) # cv2.resize(img, self.resize_shape)
+        mask = wrap(mask, self.resize_shape[0], self.resize_shape[1], randX, randY) # cv2.resize(mask, self.resize_shape)
 
         # binarize
         mask = mask > 0
@@ -243,7 +244,7 @@ class CamVidCrowd(DatasetMixin):
 
 class CamVid(DatasetMixin):
     def __init__(self, mode: str, keypoint_json_path: str, all_json_path: str, img_path: str, resize_shape: Tuple[int, int],
-        data_aug: bool=False, drop_crowd=False, drop_small=False, DISTANCE_SCALE=2.):
+        data_aug: bool=False, drop_crowd=False, drop_small=True, DISTANCE_SCALE=2.):
         self.mode = mode
         self.data_aug = data_aug
         self.img_path = img_path
@@ -319,9 +320,11 @@ class CamVid(DatasetMixin):
             mask_head = np.squeeze(mask_head)
 
         # resize
-        img  = wrap(img, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(img, self.resize_shape)
-        mask = wrap(mask, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(mask, self.resize_shape)
-        mask_head = wrap(mask_head, self.resize_shape[0], self.resize_shape[1]) # cv2.resize(mask_head, self.resize_shape)
+        randX = random()
+        randY = random()
+        img  = wrap(img, self.resize_shape[0], self.resize_shape[1], randX, randY) # cv2.resize(img, self.resize_shape)
+        mask_all = wrap(mask_all, self.resize_shape[0], self.resize_shape[1], randX, randY) # cv2.resize(mask_all, self.resize_shape)
+        mask_head = wrap(mask_head, self.resize_shape[0], self.resize_shape[1], randX, randY) # cv2.resize(mask_head, self.resize_shape)
 
         # binarize
         mask_all = mask_all > 0
