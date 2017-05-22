@@ -20,7 +20,7 @@ app = Flask(__name__, static_url_path='')
 with K.tf.device('/cpu:0'):
     model = create_unet((512, 512, 3), 64, "binarize")
     model.load_weights("./data/2017-04-28-11-11-28_fil64_adam_lr0.0001_glorot_uniform_dice_coef_weights.epoch0081-val_loss-0.75-val_dice_coef0.75.hdf5") # ancient
-    #model.load_weights("./data/2017-05-17-07-58-54_float32_binarize_fil64_adam_lr0.0001_glorot_uniform_shape512x512_batch_size8_weights.epoch0023-val_loss-0.77-val_dice_coef0.77.hdf5") # 復元モデル
+    #model.load_weights("./data/2017-05-17-07-58-54_float32_binarize_fil64_adam_lr0.0001_glorot_uniform_shape512x512_batch_size8_weights.epoch0024-val_loss-0.75-val_dice_coef0.75.hdf5") # 復元モデル
     model2 = create_unet((512, 512, 4), 64, "heatmap")
     model2.load_weights("./data/2017-05-12-06-02-02_fil64_adam_lr0.0001_glorot_uniform_shape256x256_learn_head_data_aug_mean_squared_error_weights.epoch0081-val_loss129.64-val_acc0.71.hdf5")
 
@@ -69,13 +69,17 @@ def upload_file():
     #th1[th1 < 64] = 0 # threashold or use FFT 
     labelnum, labelimg, contours, GoCs = cv2.connectedComponentsWithStats(th1)
 
-    img3 = np.expand_dims(np.dstack((img[0], output[0])), axis=0) # alpha
+    alpha = (output[0]/output[0].max()*255).astype("uint8") # to uint8
+    alpha[alpha<64] = 64
+    img3 = np.expand_dims(np.dstack((img[0], alpha)), axis=0) # alpha
 
     clips = [] # type: List[Tuple[int, int, int, int]]
     for label in range(labelnum):
         x,y,w,h,size = contours[label]
         if w == 512 and h == 512: continue
         if size < 5*5: continue
+        if th1[y:y+h,x:x+w].max() < 128: continue
+
         clips.append((x,y,w,h))
         img3[0] = cv2.rectangle(img3[0], (x,y), (x+w,y+h), (0,255,0), 1)
 
