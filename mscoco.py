@@ -233,7 +233,7 @@ class CamVidCrowd(DatasetMixin):
         randX = random()
         randY = random()
         img  = wrap(img, self.resize_shape[0], self.resize_shape[1], randX, randY) # cv2.resize(img, self.resize_shape)
-        mask = wrap(mask, self.resize_shape[0], self.resize_shape[1], randX, randY) # cv2.resize(mask, self.resize_shape)
+        mask = wrap(mask, int(self.resize_shape[0]/2), int(self.resize_shape[1]/2), randX, randY) # cv2.resize(mask, self.resize_shape)
 
         # binarize
         mask = mask > 0

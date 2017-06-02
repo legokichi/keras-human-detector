@@ -28,6 +28,33 @@ with K.tf.device('/cpu:0'):
     #model3.load_weights("./data/2017-05-17-07-36-40_float32_hydra_fil64_adam_lr0.0001_glorot_uniform_shape512x512_batch_size8_data_aug_weights.epoch0048-val_loss-0.77.hdf5")
 
 
+def trims(lines: str)-> List[str]: return [line.strip() for line in lines.split("\n") if line != ""]
+from PIL import Image
+def wrap(img, dest_width, dest_height, randX, randY):
+    if img.ndim > 2:
+        ch = img.shape[2]
+        dest = np.zeros((dest_width, dest_height, ch), dtype="uint8")
+    else:
+        dest = np.zeros((dest_width, dest_height), dtype="uint8")
+    height = img.shape[0]
+    width = img.shape[1]
+    if width<height:
+            dest_width = int(dest_height/height * width)
+    elif width>height:
+            dest_height = int(dest_width/width * height)
+    img = cv2.resize(img, (dest_width, dest_height))
+    rangeX = max(0, dest.shape[1] - img.shape[1])
+    rangeY = max(0, dest.shape[0] - img.shape[0])
+    _img = Image.fromarray(img)
+    _dest = Image.fromarray(dest)
+    _dest.paste(_img, (int(rangeX*randX), int(rangeY*randY)))
+    dest = np.asarray(_dest)
+    dest.flags.writeable = True
+    return dest
+
+
+
+
 @app.route('/')
 def root():
     return app.send_static_file('index.html')
@@ -56,33 +83,23 @@ def upload_file():
     start = time.time()
 
     img = io.imread(filename)
-    img = cv2.resize(img, (512, 512))
     if img.shape[2] == 4:
         print("drop alpha channel")
         img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
 
-    seq_noise = iaa.Sequential([
-        iaa.ContrastNormalization(1.),
-    ]) # type: iaa.Sequential
-    img  = seq_noise.augment_images(img)
-
+    img  = wrap(img, 512, 512, 0, 0) 
     img = np.expand_dims(img, axis=0)
 
     with K.tf.device('/cpu:0'):
-        
-        output1 = model.predict(img)
-        
-        #output3,output4 = model3.predict(img)
-        output = output1# + output3
-        output[output>1]=1
-        
-        img2 = np.expand_dims(np.dstack((img[0], output[0])), axis=0)
+        output = model.predict(img)
+        resized = cv2.resize(output[0], (512, 512))
+        img2 = np.dstack((img[0], resized))
+        img2 = np.expand_dims(img2, axis=0)
         output2 = model2.predict(img2)
-
 
     # postprocessing
     th1 = (output2[0]/output2[0].max()*255).astype("uint8") # to uint8
-    th1[th1 < 128] = 0 # threashold or use FFT 
+    #th1[th1 < 128] = 0 # threashold or use FFT 
     labelnum, labelimg, contours, GoCs = cv2.connectedComponentsWithStats(th1)
 
     alpha = (output[0]/output[0].max()*255).astype("uint8") # to uint8
